@@ -17,5 +17,5 @@ Cargo.lock
 **.xlsx
 
 # C Library
-/kb_getch_sys/c_lib/*.obj
-/kb_getch_sys/c_lib/*.lib
+/kb-getch-sys/c_lib/*.obj
+/kb-getch-sys/c_lib/*.lib
