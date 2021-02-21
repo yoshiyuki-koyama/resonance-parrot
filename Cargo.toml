@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "resonance-parrot",
+    "resonance-to-notes",
+    "wavfile",
+    "kb-getch-sys",
+]
