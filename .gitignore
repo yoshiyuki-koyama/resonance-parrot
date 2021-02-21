@@ -19,3 +19,6 @@ Cargo.lock
 # C Library
 /kb-getch-sys/c_lib/*.obj
 /kb-getch-sys/c_lib/*.lib
+
+# vscode
+/.vscode/**
