@@ -24,7 +24,7 @@ mod tests {
         let res_wav_audio = wav_file.get_wav_audio();
         if let Ok(wav_audio) = res_wav_audio {
             // Check
-            println!("ch = {}, frequency = {}, bits_per_sample = {}",wav_audio.fmt.channel, wav_audio.fmt.frequency, wav_audio.fmt.bits);
+            println!("ch = {}, sampling_rate = {}, bits_per_sample = {}",wav_audio.fmt.channel, wav_audio.fmt.sampling_rate, wav_audio.fmt.bits);
             println!("data length = {}",wav_audio.data.len());
             print!("data = ");
             for (i,data) in wav_audio.data.iter().enumerate() {
@@ -59,7 +59,7 @@ mod tests {
 pub struct Fmt {
     pub id: usize,
     pub channel: usize,
-    pub frequency: usize,
+    pub sampling_rate: usize,
     pub bits: usize
 }
 
@@ -316,7 +316,7 @@ impl WavFile {
         // channel
         let channel = usize::from(u16::from_le_bytes(<[u8;2]>::try_from(&ref_chunk_body[0x02..0x04])?));
         // Sampling Rate
-        let frequency = usize::try_from(u32::from_le_bytes(<[u8;4]>::try_from(&ref_chunk_body[0x04..0x08])?))?;
+        let sampling_rate = usize::try_from(u32::from_le_bytes(<[u8;4]>::try_from(&ref_chunk_body[0x04..0x08])?))?;
         // Byte Per Sec
         let bytes_per_sec = usize::try_from(u32::from_le_bytes(<[u8;4]>::try_from(&ref_chunk_body[0x08..0x0c])?))?;
         // Block Size
@@ -325,7 +325,7 @@ impl WavFile {
         let bits = usize::from(u16::from_le_bytes(<[u8;2]>::try_from(&ref_chunk_body[0x0e..0x10])?));
 
         // Check Byte Per Sec.
-        if bytes_per_sec != channel * frequency * (bits / 8)  {
+        if bytes_per_sec != channel * sampling_rate * (bits / 8)  {
             return Err(WavFileError::new("Not match parameter! Byte Per Sec"));
         }
         // Check Block Size.
@@ -335,7 +335,7 @@ impl WavFile {
         Ok(Fmt {
             id:format_id,
             channel:channel,
-            frequency:frequency,
+            sampling_rate:sampling_rate,
             bits:bits
         })
     }
@@ -350,9 +350,9 @@ impl WavFile {
         // channel
         chunk_body.append(&mut ref_fmt.channel.to_le_bytes()[0..2].to_vec());
         // Sampling Rate
-        chunk_body.append(&mut ref_fmt.frequency.to_le_bytes()[0..4].to_vec());
+        chunk_body.append(&mut ref_fmt.sampling_rate.to_le_bytes()[0..4].to_vec());
         // Byte Per Sec
-        chunk_body.append(&mut (ref_fmt.channel * ref_fmt.frequency * (ref_fmt.bits / 8)).to_le_bytes()[0..4].to_vec());
+        chunk_body.append(&mut (ref_fmt.channel * ref_fmt.sampling_rate * (ref_fmt.bits / 8)).to_le_bytes()[0..4].to_vec());
         // Block Size
         chunk_body.append(&mut (ref_fmt.channel * ref_fmt.bits / 8).to_le_bytes()[0..2].to_vec());
         // Bit Rate
@@ -368,7 +368,7 @@ fn fmt_check(ref_fmt: &Fmt) -> Result<()> {
     if ref_fmt.bits == 0 || ref_fmt.bits > 64 {
         return Err(WavFileError::new("Irregal Format! Not Supported Bit Rate."));
     }
-    match ref_fmt.frequency {
+    match ref_fmt.sampling_rate {
         8000  => {},
         16000 => {},
         44100 => {},
