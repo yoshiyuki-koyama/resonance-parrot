@@ -6,6 +6,11 @@
 ## Binary: resonance-parrot
 
 
+## Library: resonance
+Get frequency spectrum by resonance.
+The spectrum is calculated by applying the force of sound waves to the spring-damper system that resonates at each frequency.
+
+
 ## Library: wavfile
 Read and write WAV(RIFF waveform Audio Format) file.
 Convert WAV data to f64 vec.
