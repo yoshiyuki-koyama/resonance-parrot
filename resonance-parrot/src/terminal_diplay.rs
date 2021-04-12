@@ -46,7 +46,7 @@ struct InputInfo {
 pub struct DisplayEvent {
     event: DisplayEventType,
     time_idx: Option<usize>,
-    sound_vec_asrc: Option<Arc<Vec<Vec<f64>>>>,
+    sound_vec_arc: Option<Arc<Vec<Vec<f64>>>>,
     spectrum_vec_arc: Option<Arc<Vec<Vec<Vec<f64>>>>>,
     abs_range: Option<NoteRange>,
     rel_range: Option<isize>,
@@ -58,7 +58,7 @@ impl DisplayEvent {
         Ok(DisplayEvent {
             event: DisplayEventType::Open,
             time_idx: Some(0),
-            sound_vec_asrc: None,
+            sound_vec_arc: None,
             spectrum_vec_arc: None,
             abs_range: Some(NoteRange{
                 stt_idx:usize::try_from(SpnIdx::A2 as i32)?,
@@ -72,7 +72,7 @@ impl DisplayEvent {
         Ok(DisplayEvent {
             event: DisplayEventType::ChangeRange,
             time_idx: None,
-            sound_vec_asrc: None,
+            sound_vec_arc: None,
             spectrum_vec_arc: None,
             abs_range: Some(NoteRange{
                 stt_idx:usize::try_from(lowest_note as i32)?,
@@ -86,18 +86,18 @@ impl DisplayEvent {
         DisplayEvent {
             event: DisplayEventType::ChangeRange,
             time_idx: None,
-            sound_vec_asrc: None,
+            sound_vec_arc: None,
             spectrum_vec_arc: None,
             abs_range: None,
             rel_range: Some(rel_range),
             input_info: None,
         }
     }
-    pub fn update_value(time_idx: usize, sound_vec_asrc: Arc<Vec<Vec<f64>>>, spectrum_vec_arc: Arc<Vec<Vec<Vec<f64>>>>) -> DisplayEvent {
+    pub fn update_value(time_idx: usize, sound_vec_arc: Arc<Vec<Vec<f64>>>, spectrum_vec_arc: Arc<Vec<Vec<Vec<f64>>>>) -> DisplayEvent {
         DisplayEvent {
             event: DisplayEventType::UpdateValue,
             time_idx: Some(time_idx),
-            sound_vec_asrc: Some(sound_vec_asrc),
+            sound_vec_arc: Some(sound_vec_arc),
             spectrum_vec_arc: Some(spectrum_vec_arc),
             abs_range: None,
             rel_range: None,
@@ -108,7 +108,7 @@ impl DisplayEvent {
         DisplayEvent {
             event: DisplayEventType::Close,
             time_idx: None,
-            sound_vec_asrc: None,
+            sound_vec_arc: None,
             spectrum_vec_arc: None,
             abs_range: None,
             rel_range: None,
@@ -119,7 +119,7 @@ impl DisplayEvent {
         DisplayEvent {
             event: DisplayEventType::Close,
             time_idx: None,
-            sound_vec_asrc: None,
+            sound_vec_arc: None,
             spectrum_vec_arc: None,
             abs_range: None,
             rel_range: None,
@@ -481,31 +481,30 @@ fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
                     return Err(ResonanceParrotError::new("Display ChangeRange when Status is Closed!"));
                 }
                 // Check & Copy Event to Contents
+                let mut range_updated:bool = false;
                 if let Some(abs_range) = display_event.abs_range {
                     terminal.contents.range = abs_range;
+                    range_updated = true;
                 }
-                else {
-                    if let Some(rel_range) = display_event.rel_range {
-                        if rel_range > 0 {
-                            if terminal.contents.range.end_idx + usize::try_from(rel_range.abs())? <= SPN_NUM {
-                                terminal.contents.range.stt_idx += usize::try_from(rel_range.abs())?;
-                                terminal.contents.range.end_idx += usize::try_from(rel_range.abs())?;
-                            }
-                        }
-                        else {
-                            if terminal.contents.range.stt_idx >= usize::try_from(rel_range.abs())? {
-                                terminal.contents.range.stt_idx -= usize::try_from(rel_range.abs())?;
-                                terminal.contents.range.end_idx -= usize::try_from(rel_range.abs())?;
-                            }
-                        }
+                else if let Some(rel_range) = display_event.rel_range {
+                    if rel_range > 0 && terminal.contents.range.end_idx + usize::try_from(rel_range.abs())? <= SPN_NUM {
+                        terminal.contents.range.stt_idx += usize::try_from(rel_range.abs())?;
+                        terminal.contents.range.end_idx += usize::try_from(rel_range.abs())?;
+                        range_updated = true;
                     }
-                    else{
-                        return Err(ResonanceParrotError::new("Display ChangeRange with No Range!"));
+                    else if rel_range < 0 && terminal.contents.range.stt_idx >= usize::try_from(rel_range.abs())? {
+                        terminal.contents.range.stt_idx -= usize::try_from(rel_range.abs())?;
+                        terminal.contents.range.end_idx -= usize::try_from(rel_range.abs())?;
+                        range_updated = true;
                     }
                 }
-                
-                reset_vbar(&mut terminal)?;
-                print_blank_vbar(&mut terminal)?;
+                else{
+                    return Err(ResonanceParrotError::new("Display ChangeRange with No Range!"));
+                }
+                if range_updated {
+                    reset_vbar(&mut terminal)?;
+                    print_blank_vbar(&mut terminal)?;
+                }
             }
             DisplayEventType::UpdateValue => {
                 if terminal.status == TerminalStatus::Closed {
@@ -517,7 +516,7 @@ fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
                     return Err(ResonanceParrotError::new("Display Open with No Time Idx!"));
                 }
                 terminal.contents.time_idx = display_event.time_idx.unwrap();
-                if display_event.sound_vec_asrc.is_none() {
+                if display_event.sound_vec_arc.is_none() {
                     return Err(ResonanceParrotError::new("Display Open with No Sound Data!"));
                 }
                 if display_event.spectrum_vec_arc.is_none() {
@@ -525,14 +524,14 @@ fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
                 }
                 
                 // tmp value
-                let sound_vec_asrc = display_event.sound_vec_asrc.unwrap();
+                let sound_vec_arc = display_event.sound_vec_arc.unwrap();
                 let spectrum_vec_arc = display_event.spectrum_vec_arc.unwrap();
 
                 terminal.back_to_home_line()?;
                 // Time Display
                 push_time_display(&mut terminal)?;
                 // Extract Max Value in Data Block
-                for (ch_idx, ch) in sound_vec_asrc.iter().enumerate() {
+                for (ch_idx, ch) in sound_vec_arc.iter().enumerate() {
                     let mut max = 0.0;
                     for data_idx in 0..ch.len() {
                         let tmp = ch[data_idx].abs();
