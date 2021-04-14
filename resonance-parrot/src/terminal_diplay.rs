@@ -23,7 +23,7 @@ fn f64_to_u32(f64_val:f64) -> u32 {
 
 #[derive(Clone)]
 #[derive(PartialEq)]
-enum DisplayEventType {
+enum DisplayRequestType {
     Open,
     ChangeRange,
     UpdateValue,
@@ -43,8 +43,8 @@ struct InputInfo {
     ch_num: usize,
 }
 
-pub struct DisplayEvent {
-    event: DisplayEventType,
+pub struct DisplayRequest {
+    event: DisplayRequestType,
     time_idx: Option<usize>,
     sound_vec_arc: Option<Arc<Vec<Vec<f64>>>>,
     spectrum_vec_arc: Option<Arc<Vec<Vec<Vec<f64>>>>>,
@@ -53,10 +53,10 @@ pub struct DisplayEvent {
     input_info: Option<InputInfo>,
 }
 
-impl DisplayEvent {
-    pub fn open( name: String, sampling_rate: usize, bits: usize, ch_num: usize) -> Result<DisplayEvent> {
-        Ok(DisplayEvent {
-            event: DisplayEventType::Open,
+impl DisplayRequest {
+    pub fn open( name: String, sampling_rate: usize, bits: usize, ch_num: usize) -> Result<DisplayRequest> {
+        Ok(DisplayRequest {
+            event: DisplayRequestType::Open,
             time_idx: Some(0),
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -68,9 +68,9 @@ impl DisplayEvent {
             input_info: Some(InputInfo{name: name, sampling_rate: sampling_rate, bits: bits, ch_num: ch_num}),
         })
     }
-    pub fn change_abs_range(lowest_note: SpnIdx, highest_note: SpnIdx) -> Result<DisplayEvent> {
-        Ok(DisplayEvent {
-            event: DisplayEventType::ChangeRange,
+    pub fn change_abs_range(lowest_note: SpnIdx, highest_note: SpnIdx) -> Result<DisplayRequest> {
+        Ok(DisplayRequest {
+            event: DisplayRequestType::ChangeRange,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -82,9 +82,9 @@ impl DisplayEvent {
             input_info: None,
         })
     }
-    pub fn change_rel_range(rel_range: isize) -> DisplayEvent {
-        DisplayEvent {
-            event: DisplayEventType::ChangeRange,
+    pub fn change_rel_range(rel_range: isize) -> DisplayRequest {
+        DisplayRequest {
+            event: DisplayRequestType::ChangeRange,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -93,9 +93,9 @@ impl DisplayEvent {
             input_info: None,
         }
     }
-    pub fn update_value(time_idx: usize, sound_vec_arc: Arc<Vec<Vec<f64>>>, spectrum_vec_arc: Arc<Vec<Vec<Vec<f64>>>>) -> DisplayEvent {
-        DisplayEvent {
-            event: DisplayEventType::UpdateValue,
+    pub fn update_value(time_idx: usize, sound_vec_arc: Arc<Vec<Vec<f64>>>, spectrum_vec_arc: Arc<Vec<Vec<Vec<f64>>>>) -> DisplayRequest {
+        DisplayRequest {
+            event: DisplayRequestType::UpdateValue,
             time_idx: Some(time_idx),
             sound_vec_arc: Some(sound_vec_arc),
             spectrum_vec_arc: Some(spectrum_vec_arc),
@@ -104,9 +104,9 @@ impl DisplayEvent {
             input_info: None,
         }
     }
-    pub fn close() -> DisplayEvent {
-        DisplayEvent {
-            event: DisplayEventType::Close,
+    pub fn close() -> DisplayRequest {
+        DisplayRequest {
+            event: DisplayRequestType::Close,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -115,9 +115,9 @@ impl DisplayEvent {
             input_info: None,
         }
     }
-    pub fn exit() -> DisplayEvent {
-        DisplayEvent {
-            event: DisplayEventType::Close,
+    pub fn exit() -> DisplayRequest {
+        DisplayRequest {
+            event: DisplayRequestType::Close,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -440,14 +440,14 @@ fn print_blank_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
     Ok(())
 }
 
-fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
+fn display_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> {
     let mut terminal = TerminalDisplay::new()?;
 
     loop {
         // Set block start & end index
         let display_event = to_display_receiver.recv()?;
         match display_event.event {
-            DisplayEventType::Open => {
+            DisplayRequestType::Open => {
                 if terminal.status != TerminalStatus::Closed {
                     return Err(ResonanceParrotError::new("Display Open when Status is Opened!"));
                 }
@@ -476,7 +476,7 @@ fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
                 print_blank_vbar(&mut terminal)?;
                 terminal.status = TerminalStatus::Opened;
             }
-            DisplayEventType::ChangeRange => {
+            DisplayRequestType::ChangeRange => {
                 if terminal.status == TerminalStatus::Closed {
                     return Err(ResonanceParrotError::new("Display ChangeRange when Status is Closed!"));
                 }
@@ -506,7 +506,7 @@ fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
                     print_blank_vbar(&mut terminal)?;
                 }
             }
-            DisplayEventType::UpdateValue => {
+            DisplayRequestType::UpdateValue => {
                 if terminal.status == TerminalStatus::Closed {
                     return Err(ResonanceParrotError::new("Display UpdateValue when Status is Closed!"));
                 }
@@ -560,12 +560,12 @@ fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
                 }
                 terminal.print_and_flush()?;
             },
-            DisplayEventType::Close => {
+            DisplayRequestType::Close => {
                 //todo!() contents reset??
                 terminal.status = TerminalStatus::Closed;
                 break;
             },
-            DisplayEventType::Exit => {
+            DisplayRequestType::Exit => {
                 break;
             },
             //_ => {},
@@ -577,7 +577,7 @@ fn display_main(to_display_receiver: Receiver<DisplayEvent>) ->  Result<bool> {
     Ok(true)
 }
 
-pub fn display_thread(to_display_receiver: Receiver<DisplayEvent>) -> AtomicBool {  
+pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) -> AtomicBool {  
     match display_main(to_display_receiver) {
          Ok(bool_ret) => {
              if bool_ret {

@@ -90,7 +90,7 @@ impl KeyHitInput {
     }
 }
 
-fn keyhit_main(event_sender: Sender<AppEvent>, key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> Result<()> {
+fn keyhit_main(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> Result<()> {
     let sleep_duration = time::Duration::new(0, 1000000); // 1ms
     let keyhit_input = KeyHitInput::new();
     let mut event_id = 0;
@@ -98,7 +98,7 @@ fn keyhit_main(event_sender: Sender<AppEvent>, key_sender: Sender<char>, to_keyh
         if let Some(input_char) = keyhit_input.cli_key_input()? {
             event_sender.send(AppEvent{thread_id:ThreadID::KeyHit, event_id:event_id})?;
             event_id += 1;
-            key_sender.send(input_char)?;
+            from_key_sender.send(input_char)?;
             if to_keyhit_receiver.recv()? == KeyHitRequest::Exit {
                 break;
             }

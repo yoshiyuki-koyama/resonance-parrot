@@ -83,7 +83,7 @@ fn wav_to_track( wav_path: &std::path::Path) -> Result<Track> {
 fn resonance_parrot() -> Result<()> {
     let base_track = wav_to_track(std::path::Path::new(r"./test.wav"))?;
 
-    
+    //  Time Measurement
     //let mut resonance_spectrum = ResonanceSpectrum::new(440.0, base_track.ch_vec.len(), base_track.sampling_rate)?;
     //let now = time::Instant::now();
     //for (ch_idx, ch) in base_track.ch_vec.iter().enumerate() {
@@ -100,7 +100,7 @@ fn resonance_parrot() -> Result<()> {
         timeline_thread(time_event, from_timeline_sender, to_timeline_receiver)
     );
 
-    let (to_display_sender, to_display_receiver) = channel::<DisplayEvent>();
+    let (to_display_sender, to_display_receiver) = channel::<DisplayRequest>();
     let display_thread_instanse = thread::spawn(move || 
         display_thread(to_display_receiver)
     );
@@ -112,9 +112,9 @@ fn resonance_parrot() -> Result<()> {
         keyhit_thread(key_event, from_key_sender, to_key_receiver)
     );
 
-    to_display_sender.send(DisplayEvent::open(base_track.file_path.to_string_lossy().to_string(),base_track.sampling_rate,base_track.bits,base_track.ch_vec.len())?)?;
+    to_display_sender.send(DisplayRequest::open(base_track.file_path.to_string_lossy().to_string(),base_track.sampling_rate,base_track.bits,base_track.ch_vec.len())?)?;
     to_timeline_sender.send(TimelineRequest::open(base_track.ch_vec[0].len(), base_track.sampling_rate, base_track.sampling_rate/100))?;
-    let mut resonance_spectrum = ResonanceSpectrum::new(440.0, base_track.ch_vec.len(), base_track.sampling_rate)?;
+    let mut resonance_spectrum = ResonanceSpectrum::new(440.0, base_track.ch_vec.len(), base_track.sampling_rate, 6)?;
 
     loop {
         let event = event_receiver.recv()?;
@@ -139,7 +139,7 @@ fn resonance_parrot() -> Result<()> {
                 }
                 let sound_arc = Arc::new(sound_vec);
                 let spectrum_arc = Arc::new(resonance_vec);
-                to_display_sender.send(DisplayEvent::update_value(timeline_report.timeline.time_counter, sound_arc, spectrum_arc))?;
+                to_display_sender.send(DisplayRequest::update_value(timeline_report.timeline.time_counter, sound_arc, spectrum_arc))?;
             },
             ThreadID::KeyHit => {
                 let input_char = from_key_receiver.recv()?;
@@ -166,11 +166,11 @@ fn resonance_parrot() -> Result<()> {
                 }
                 if input_char == 'e' || input_char == 'E' {
                     // Shift Range High
-                    to_display_sender.send(DisplayEvent::change_rel_range(12))?;
+                    to_display_sender.send(DisplayRequest::change_rel_range(12))?;
                 }
                 if input_char == 'c' || input_char == 'C' {
                     // Shift Range Low
-                    to_display_sender.send(DisplayEvent::change_rel_range(-12))?;
+                    to_display_sender.send(DisplayRequest::change_rel_range(-12))?;
                 }
                 to_key_sender.send(KeyHitRequest::Continue)?;
             },
@@ -179,7 +179,7 @@ fn resonance_parrot() -> Result<()> {
     }
     print!("\n\n\n");
     print!("Display Thread Close....");
-    to_display_sender.send(DisplayEvent::exit())?;
+    to_display_sender.send(DisplayRequest::exit())?;
     match  display_thread_instanse.join() {
         Ok(_ret) => {
             println!("Ok!");
