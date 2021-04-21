@@ -4,6 +4,12 @@ use error::*;
 use std::convert::TryFrom;
 use std::f64::consts::PI;
 
+use std::thread;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::{Sender, Receiver};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
 
 const LOWEST_PITCH_IDX: isize = -48; // A0 to A8
 const HIGHEST_PITCH_IDX: isize = 48;
@@ -59,61 +65,68 @@ pub struct SpringStatus {
     position:f64,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
-pub struct ResonanceSpectrum {
-    spring_constant_vec: Vec<f64>,
-    pub spring_sts_ch_vec: Vec<Vec<SpringStatus>>,  // channel<spring<SpringStatus>>
-    pub energy_spring_ch_vec:Vec<Vec<Vec<f64>>>,  // channel<spring<data<energy>>>
-    data_period: f64,
+#[derive(PartialEq)]
+enum ResonanceRequestType {
+    Calc,
+    Exit,
 }
 
-impl ResonanceSpectrum {
-    pub fn new(pitch_standard_frequency: f64, ch_num:usize, data_frequency: usize) -> Result<ResonanceSpectrum>  {
-        let mut spring_constant_vec: Vec<f64> = Vec::new();
-        for i in LOWEST_PITCH_IDX..HIGHEST_PITCH_IDX+1 {
-            let hz = pitch_standard_frequency*2.0_f64.powf(f64::from(i32::try_from(i)?)/12.0);
-            spring_constant_vec.push((hz*2.0*PI).powi(2));
+pub struct ResonanceRequest {
+    request_type: ResonanceRequestType,
+    sound_data_arc: Option<Arc<Vec<Vec<f64>>>>,
+}
+
+pub struct ResonanceReport {
+    ch_idx: usize,
+    energy_spring_vec: Vec<Vec<f64>>,
+}
+
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub struct SplitResonance {
+    spring_constant_vec: Vec<f64>,
+    data_period: f64,
+    ch_idx: usize,
+    pub spring_sts_vec: Vec<SpringStatus>,  // channel<spring<SpringStatus>>
+    //pub energy_spring_vec:Vec<Vec<f64>>,  // channel<spring<data<energy>>>
+}
+
+impl SplitResonance {
+    pub fn new(spring_constant_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> Result<SplitResonance>  {
+        let mut spring_sts_vec: Vec<SpringStatus> = Vec::new();
+        let mut energy_spring_vec: Vec<Vec<f64>> = Vec::new();
+        for _ in 0..spring_constant_vec.len(){
+            let spring_sts = SpringStatus{
+                speed:0.0,
+                position:0.0,
+            };
+            spring_sts_vec.push(spring_sts);
+            //energy_spring_vec.push(vec!(0.0));
         }
-        
-        let mut spring_sts_ch_vec: Vec<Vec<SpringStatus>> = Vec::new();
-        let mut energy_spring_ch_vec: Vec<Vec<Vec<f64>>> = Vec::new();
-        for _ in 0..ch_num {
-            let mut spring_sts_vec: Vec<SpringStatus> = Vec::new();
-            let mut energy_spring_vec: Vec<Vec<f64>> = Vec::new();
-            for _ in 0..spring_constant_vec.len(){
-                let spring_sts = SpringStatus{
-                    speed:0.0,
-                    position:0.0,
-                };
-                spring_sts_vec.push(spring_sts);
-                energy_spring_vec.push(vec!(0.0));
-            }
-            spring_sts_ch_vec.push(spring_sts_vec);
-            energy_spring_ch_vec.push(energy_spring_vec);
-        }
-        Ok(ResonanceSpectrum {
+
+        Ok(SplitResonance {
             spring_constant_vec: spring_constant_vec,
-            data_period : 1.0/f64::from(u32::try_from(data_frequency)?),
-            spring_sts_ch_vec: spring_sts_ch_vec,
-            energy_spring_ch_vec: energy_spring_ch_vec,
+            data_period : data_period,
+            ch_idx: ch_idx,
+            spring_sts_vec: spring_sts_vec,
+            //energy_spring_vec: energy_spring_vec,
         }) 
     }
 
-    pub fn resonance(&mut self, ch_idx:usize , sound_data_slice: &[f64])  -> Result<Vec<Vec<f64>>> {
+    pub fn split_resonance(&mut self, sound_data_arc: Arc<Vec<Vec<f64>>>)  -> Result<ResonanceReport> {
         let mut energy_max = 0.0;
-        let spring_sts_vec: &mut Vec<SpringStatus> = &mut self.spring_sts_ch_vec[ch_idx];
-        let energy_spring_vec: &mut Vec<Vec<f64>> = &mut self.energy_spring_ch_vec[ch_idx];
         let mut ret_energy_spring_vec: Vec<Vec<f64>> = Vec::with_capacity(self.spring_constant_vec.len());
         for (spring_idx, spring_constant) in self.spring_constant_vec.iter().enumerate() {
-            let spring_sts = &mut spring_sts_vec[spring_idx];
-            let enegy_vec = &mut energy_spring_vec[spring_idx];
-            let mut ret_energy_vec :Vec<f64> = Vec::with_capacity(sound_data_slice.len());
-            for data in sound_data_slice.iter() {
+            let spring_sts = &mut self.spring_sts_vec[spring_idx];
+            //let enegy_vec = &mut self.energy_spring_vec[spring_idx];
+            let mut ret_energy_vec :Vec<f64> = Vec::with_capacity(sound_data_arc.len());
+            for data in sound_data_arc[self.ch_idx].iter() {
                 spring_sts.speed = (*data - spring_constant * spring_sts.position - spring_sts.speed * 100.0)*self.data_period + spring_sts.speed;
                 spring_sts.position = spring_sts.speed*self.data_period + spring_sts.position;
                 let route_energy = (0.5*spring_sts.speed.powi(2) + 0.5*spring_constant*spring_sts.position.powi(2)).powf(0.5);
-                enegy_vec.push(route_energy);
+                //enegy_vec.push(route_energy);
                 ret_energy_vec.push(route_energy);
                 if energy_max < route_energy {
                     energy_max = route_energy;
@@ -122,6 +135,182 @@ impl ResonanceSpectrum {
             ret_energy_spring_vec.push(ret_energy_vec);
         }
         //println!("{}",energy_max);
-        Ok(ret_energy_spring_vec)
+
+        Ok( ResonanceReport{
+            ch_idx: self.ch_idx,
+            energy_spring_vec: ret_energy_spring_vec,
+        })
     }
 }
+#[allow(dead_code)]
+#[derive(Clone)]
+pub struct Resonance {
+    ch_num:usize,
+    thread_per_ch: usize,
+    thread_vec: Arc<Vec<thread::JoinHandle<AtomicBool>>>,
+    to_resonance_sender_vec: Arc<Vec<Sender<ResonanceRequest>>>,
+    from_resonance_receiver_vec: Arc<Vec<Receiver<ResonanceReport>>>,
+}
+
+fn resonance_main( from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
+    split_spring_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> Result<()> {
+    
+    let mut split_resonance = SplitResonance::new(split_spring_vec, data_period, ch_idx)?;
+
+    loop {
+        let resonance_request = to_resonance_receiver.recv()?;
+        match resonance_request.request_type {
+            ResonanceRequestType::Calc => {
+                if let Some(sound_data_arc) = resonance_request.sound_data_arc {
+                    from_resonanance_sender.send(split_resonance.split_resonance(sound_data_arc)?)?;
+                }
+                else {
+                    return Err(ResonanceError::new("Calc Resonance must be with Sound Data!"));
+                }
+            }
+            ResonanceRequestType::Exit => {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn resonance_thread(
+    from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
+    split_spring_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> AtomicBool {
+    match resonance_main(from_resonanance_sender, to_resonance_receiver, split_spring_vec, data_period, ch_idx){
+        Ok(_) => {
+            AtomicBool::new(true)
+        }
+        Err(err) => {
+            println!("Resonance Thread Error! : {}", err);
+            AtomicBool::new(false)
+        }
+    }
+}
+
+impl Resonance {
+    pub fn new(pitch_standard_frequency: f64, data_frequency: usize, ch_num:usize, thread_per_ch: usize) -> Result<Resonance>  {
+        if thread_per_ch == 0 {
+            return Err(ResonanceError::new("thread_per_ch must not be 0!"));
+        }
+
+        let mut to_resonance_sender_vec: Vec<Sender<ResonanceRequest>> = Vec::new();
+        let mut from_resonance_receiver_vec: Vec<Receiver<ResonanceReport>> = Vec::new();
+        let mut resonance_thread_instanse_vec: Vec<thread::JoinHandle<AtomicBool>> = Vec::new();
+
+        let mut spring_constant_vec: Vec<f64> = Vec::new();
+        for i in LOWEST_PITCH_IDX..HIGHEST_PITCH_IDX+1 {
+            let hz = pitch_standard_frequency*2.0_f64.powf(f64::from(i32::try_from(i)?)/12.0);
+            spring_constant_vec.push((hz*2.0*PI).powi(2));
+        }
+
+        // split by thread
+        let split_pitch_range;
+        if SPN_NUM % thread_per_ch == 0 {
+            split_pitch_range = SPN_NUM / thread_per_ch;
+        }
+        else{
+            split_pitch_range =SPN_NUM / thread_per_ch + 1;
+        }
+
+        let data_period = 1.0/f64::from(u32::try_from(data_frequency)?);
+
+        for ch_idx in 0..ch_num {
+            for _split_idx in 0..thread_per_ch {
+                let split_spring_vec;
+                if spring_constant_vec.len() <= split_pitch_range {
+                    split_spring_vec = spring_constant_vec.clone();
+                }
+                else{ 
+                    split_spring_vec = spring_constant_vec.drain(..split_pitch_range).collect();
+                }
+
+                let (to_resonance_sender, to_resonance_receiver) = channel::<ResonanceRequest>(); // data
+                let (from_resonance_sender, from_resonance_receiver) = channel::<ResonanceReport>(); // spring<data<energy>>
+                let resonance_thread_instanse = thread::spawn(move || 
+                    resonance_thread(from_resonance_sender, to_resonance_receiver, split_spring_vec, data_period, ch_idx)
+                );
+                to_resonance_sender_vec.push(to_resonance_sender);
+                from_resonance_receiver_vec.push(from_resonance_receiver);
+                resonance_thread_instanse_vec.push(resonance_thread_instanse);
+            }
+        }
+        Ok(Resonance {
+            ch_num: ch_num,
+            thread_per_ch: thread_per_ch,
+            thread_vec: Arc::new(resonance_thread_instanse_vec),
+            to_resonance_sender_vec: Arc::new(to_resonance_sender_vec),
+            from_resonance_receiver_vec: Arc::new(from_resonance_receiver_vec)
+        })
+    }
+
+    // Temporary Implementation
+    pub fn resonance(&self, sound_data_arc: Arc<Vec<Vec<f64>>>) -> Result<Vec<Vec<Vec<f64>>>> { // channel<spring<data<energy>>>
+      for sender in &*self.to_resonance_sender_vec {
+        sender.send(ResonanceRequest {
+                request_type: ResonanceRequestType::Calc,
+                sound_data_arc: Some(sound_data_arc.clone()),
+        })?;
+      }
+      
+      let mut energy_spring_ch_vec:Vec<Vec<Vec<f64>>> = Vec::with_capacity(self.ch_num);
+      for _ in 0..self.ch_num {
+        energy_spring_ch_vec.push(Vec::new());
+      }
+      for receiver in &*self.from_resonance_receiver_vec {
+        let mut resonance_report = receiver.recv()?;
+        energy_spring_ch_vec[resonance_report.ch_idx].append(&mut resonance_report.energy_spring_vec);
+      }
+      Ok(energy_spring_ch_vec)
+    }
+
+    pub fn exit(mut self) -> Result<()> { 
+        for sender in &*self.to_resonance_sender_vec {
+            sender.send(ResonanceRequest {
+                    request_type: ResonanceRequestType::Exit,
+                    sound_data_arc: None,
+            })?;
+        }
+
+        print!("Split Resonance Thread Close....");
+        if let Some(thread_vec) = Arc::get_mut(&mut self.thread_vec) {
+            loop {
+                if let Some(thread) = thread_vec.pop() {
+                    match thread.join() {
+                        Ok(_ret) => {
+                            println!("Ok!");
+                        }
+                        Err(_err) => {
+                            println!("Error!");
+                        }
+                    }
+                }
+                else {
+                    println!("All Resonance Thread Closed!");
+                    break;
+                }
+            }
+        }
+        else {
+
+        }
+
+        Ok(())
+    }
+}
+
+
+
+
+impl Drop for Resonance {
+    fn drop(&mut self) {
+
+    }
+}
+
+
+
+
+

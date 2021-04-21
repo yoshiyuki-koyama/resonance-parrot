@@ -82,15 +82,7 @@ fn wav_to_track( wav_path: &std::path::Path) -> Result<Track> {
 
 fn resonance_parrot() -> Result<()> {
     let base_track = wav_to_track(std::path::Path::new(r"./test.wav"))?;
-
-    //  Time Measurement
-    //let mut resonance_spectrum = ResonanceSpectrum::new(440.0, base_track.ch_vec.len(), base_track.sampling_rate)?;
-    //let now = time::Instant::now();
-    //for (ch_idx, ch) in base_track.ch_vec.iter().enumerate() {
-    //    resonance_spectrum.resonance(ch_idx, &ch[0..442])?;
-    //}
-    //println!("Dur: {}",now.elapsed().as_millis());
-
+    
     let (event_sender, event_receiver) = channel::<AppEvent>();
 
     let time_event = event_sender.clone();
@@ -114,7 +106,7 @@ fn resonance_parrot() -> Result<()> {
 
     to_display_sender.send(DisplayRequest::open(base_track.file_path.to_string_lossy().to_string(),base_track.sampling_rate,base_track.bits,base_track.ch_vec.len())?)?;
     to_timeline_sender.send(TimelineRequest::open(base_track.ch_vec[0].len(), base_track.sampling_rate, base_track.sampling_rate/100))?;
-    let mut resonance_spectrum = ResonanceSpectrum::new(440.0, base_track.ch_vec.len(), base_track.sampling_rate, 6)?;
+    let resonance = Resonance::new(440.0, base_track.sampling_rate, base_track.ch_vec.len(), 3)?;
 
     loop {
         let event = event_receiver.recv()?;
@@ -124,8 +116,7 @@ fn resonance_parrot() -> Result<()> {
                 
                 // Temporary Process
                 let mut sound_vec:Vec<Vec<f64>> = Vec::with_capacity(base_track.ch_vec.len());
-                let mut resonance_vec:Vec<Vec<Vec<f64>>> = Vec::with_capacity(base_track.ch_vec.len());
-                for (ch_idx, ch) in base_track.ch_vec.iter().enumerate() {
+                for (_ch_idx, ch) in base_track.ch_vec.iter().enumerate() {
                     let data_stt = timeline_report.timeline.time_counter;
                     let data_end;
                     if timeline_report.timeline.time_counter + timeline_report.timeline.base.event_divisor < ch.len() {
@@ -134,10 +125,11 @@ fn resonance_parrot() -> Result<()> {
                     else{
                         data_end = ch.len()
                     }
-                    resonance_vec.push(resonance_spectrum.resonance(ch_idx, &ch[data_stt..data_end])?);
                     sound_vec.push(ch[data_stt..data_end].to_vec());
                 }
                 let sound_arc = Arc::new(sound_vec);
+                let resonance_vec = resonance.resonance(sound_arc.clone())?;
+
                 let spectrum_arc = Arc::new(resonance_vec);
                 to_display_sender.send(DisplayRequest::update_value(timeline_report.timeline.time_counter, sound_arc, spectrum_arc))?;
             },
@@ -208,6 +200,7 @@ fn resonance_parrot() -> Result<()> {
             println!("Error!");
         }
     }
+    resonance.exit()?;
 
     let wav_audio_fmt = Fmt {
         id:base_track.format_id,
