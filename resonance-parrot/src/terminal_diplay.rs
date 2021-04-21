@@ -44,7 +44,7 @@ struct InputInfo {
 }
 
 pub struct DisplayRequest {
-    event: DisplayRequestType,
+    request_type: DisplayRequestType,
     time_idx: Option<usize>,
     sound_vec_arc: Option<Arc<Vec<Vec<f64>>>>,
     spectrum_vec_arc: Option<Arc<Vec<Vec<Vec<f64>>>>>,
@@ -56,7 +56,7 @@ pub struct DisplayRequest {
 impl DisplayRequest {
     pub fn open( name: String, sampling_rate: usize, bits: usize, ch_num: usize) -> Result<DisplayRequest> {
         Ok(DisplayRequest {
-            event: DisplayRequestType::Open,
+            request_type: DisplayRequestType::Open,
             time_idx: Some(0),
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -70,7 +70,7 @@ impl DisplayRequest {
     }
     pub fn change_abs_range(lowest_note: SpnIdx, highest_note: SpnIdx) -> Result<DisplayRequest> {
         Ok(DisplayRequest {
-            event: DisplayRequestType::ChangeRange,
+            request_type: DisplayRequestType::ChangeRange,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -84,7 +84,7 @@ impl DisplayRequest {
     }
     pub fn change_rel_range(rel_range: isize) -> DisplayRequest {
         DisplayRequest {
-            event: DisplayRequestType::ChangeRange,
+            request_type: DisplayRequestType::ChangeRange,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -95,7 +95,7 @@ impl DisplayRequest {
     }
     pub fn update_value(time_idx: usize, sound_vec_arc: Arc<Vec<Vec<f64>>>, spectrum_vec_arc: Arc<Vec<Vec<Vec<f64>>>>) -> DisplayRequest {
         DisplayRequest {
-            event: DisplayRequestType::UpdateValue,
+            request_type: DisplayRequestType::UpdateValue,
             time_idx: Some(time_idx),
             sound_vec_arc: Some(sound_vec_arc),
             spectrum_vec_arc: Some(spectrum_vec_arc),
@@ -106,7 +106,7 @@ impl DisplayRequest {
     }
     pub fn close() -> DisplayRequest {
         DisplayRequest {
-            event: DisplayRequestType::Close,
+            request_type: DisplayRequestType::Close,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -117,7 +117,7 @@ impl DisplayRequest {
     }
     pub fn exit() -> DisplayRequest {
         DisplayRequest {
-            event: DisplayRequestType::Close,
+            request_type: DisplayRequestType::Close,
             time_idx: None,
             sound_vec_arc: None,
             spectrum_vec_arc: None,
@@ -445,26 +445,26 @@ fn display_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> 
 
     loop {
         // Set block start & end index
-        let display_event = to_display_receiver.recv()?;
-        match display_event.event {
+        let display_request = to_display_receiver.recv()?;
+        match display_request.request_type {
             DisplayRequestType::Open => {
                 if terminal.status != TerminalStatus::Closed {
                     return Err(ResonanceParrotError::new("Display Open when Status is Opened!"));
                 }
                 
                 // Check & Copy Event to Contents
-                if display_event.input_info.is_none() {
+                if display_request.input_info.is_none() {
                     return Err(ResonanceParrotError::new("Display Open with No Infomation!"));
                 }
-                terminal.contents.input_info = display_event.input_info.unwrap();
-                if display_event.abs_range.is_none() {
+                terminal.contents.input_info = display_request.input_info.unwrap();
+                if display_request.abs_range.is_none() {
                     return Err(ResonanceParrotError::new("Display Open with No Range!"));
                 }
-                terminal.contents.range = display_event.abs_range.unwrap();
-                if display_event.time_idx.is_none() {
+                terminal.contents.range = display_request.abs_range.unwrap();
+                if display_request.time_idx.is_none() {
                     return Err(ResonanceParrotError::new("Display Open with No Time Idx!"));
                 }
-                terminal.contents.time_idx = display_event.time_idx.unwrap();
+                terminal.contents.time_idx = display_request.time_idx.unwrap();
 
                 terminal.erase_display()?;
                 terminal.push_one_line(terminal.contents.input_info.name.clone());
@@ -482,11 +482,11 @@ fn display_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> 
                 }
                 // Check & Copy Event to Contents
                 let mut range_updated:bool = false;
-                if let Some(abs_range) = display_event.abs_range {
+                if let Some(abs_range) = display_request.abs_range {
                     terminal.contents.range = abs_range;
                     range_updated = true;
                 }
-                else if let Some(rel_range) = display_event.rel_range {
+                else if let Some(rel_range) = display_request.rel_range {
                     if rel_range > 0 && terminal.contents.range.end_idx + usize::try_from(rel_range.abs())? <= SPN_NUM {
                         terminal.contents.range.stt_idx += usize::try_from(rel_range.abs())?;
                         terminal.contents.range.end_idx += usize::try_from(rel_range.abs())?;
@@ -512,20 +512,20 @@ fn display_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> 
                 }
 
                 // Check & Copy Event to Contents
-                if display_event.time_idx.is_none() {
+                if display_request.time_idx.is_none() {
                     return Err(ResonanceParrotError::new("Display Open with No Time Idx!"));
                 }
-                terminal.contents.time_idx = display_event.time_idx.unwrap();
-                if display_event.sound_vec_arc.is_none() {
+                terminal.contents.time_idx = display_request.time_idx.unwrap();
+                if display_request.sound_vec_arc.is_none() {
                     return Err(ResonanceParrotError::new("Display Open with No Sound Data!"));
                 }
-                if display_event.spectrum_vec_arc.is_none() {
+                if display_request.spectrum_vec_arc.is_none() {
                     return Err(ResonanceParrotError::new("Display Open with No Spectrum Data!"));
                 }
                 
                 // tmp value
-                let sound_vec_arc = display_event.sound_vec_arc.unwrap();
-                let spectrum_vec_arc = display_event.spectrum_vec_arc.unwrap();
+                let sound_vec_arc = display_request.sound_vec_arc.unwrap();
+                let spectrum_vec_arc = display_request.spectrum_vec_arc.unwrap();
 
                 terminal.back_to_home_line()?;
                 // Time Display
