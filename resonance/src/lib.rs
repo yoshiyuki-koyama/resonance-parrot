@@ -90,20 +90,17 @@ pub struct SplitResonance {
     data_period: f64,
     ch_idx: usize,
     pub spring_sts_vec: Vec<SpringStatus>,  // channel<spring<SpringStatus>>
-    //pub energy_spring_vec:Vec<Vec<f64>>,  // channel<spring<data<energy>>>
 }
 
 impl SplitResonance {
     pub fn new(spring_constant_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> Result<SplitResonance>  {
         let mut spring_sts_vec: Vec<SpringStatus> = Vec::new();
-        let mut energy_spring_vec: Vec<Vec<f64>> = Vec::new();
         for _ in 0..spring_constant_vec.len(){
             let spring_sts = SpringStatus{
                 speed:0.0,
                 position:0.0,
             };
             spring_sts_vec.push(spring_sts);
-            //energy_spring_vec.push(vec!(0.0));
         }
 
         Ok(SplitResonance {
@@ -111,7 +108,6 @@ impl SplitResonance {
             data_period : data_period,
             ch_idx: ch_idx,
             spring_sts_vec: spring_sts_vec,
-            //energy_spring_vec: energy_spring_vec,
         }) 
     }
 
@@ -120,13 +116,11 @@ impl SplitResonance {
         let mut ret_energy_spring_vec: Vec<Vec<f64>> = Vec::with_capacity(self.spring_constant_vec.len());
         for (spring_idx, spring_constant) in self.spring_constant_vec.iter().enumerate() {
             let spring_sts = &mut self.spring_sts_vec[spring_idx];
-            //let enegy_vec = &mut self.energy_spring_vec[spring_idx];
             let mut ret_energy_vec :Vec<f64> = Vec::with_capacity(sound_data_arc.len());
             for data in sound_data_arc[self.ch_idx].iter() {
                 spring_sts.speed = (*data - spring_constant * spring_sts.position - spring_sts.speed * 100.0)*self.data_period + spring_sts.speed;
                 spring_sts.position = spring_sts.speed*self.data_period + spring_sts.position;
                 let route_energy = (0.5*spring_sts.speed.powi(2) + 0.5*spring_constant*spring_sts.position.powi(2)).powf(0.5);
-                //enegy_vec.push(route_energy);
                 ret_energy_vec.push(route_energy);
                 if energy_max < route_energy {
                     energy_max = route_energy;
@@ -134,7 +128,6 @@ impl SplitResonance {
             }
             ret_energy_spring_vec.push(ret_energy_vec);
         }
-        //println!("{}",energy_max);
 
         Ok( ResonanceReport{
             ch_idx: self.ch_idx,
@@ -266,47 +259,108 @@ impl Resonance {
       Ok(energy_spring_ch_vec)
     }
 
-    pub fn exit(mut self) -> Result<()> { 
+    // manual exit
+    pub fn exit(&mut self) -> Result<()> {
+        let mut err_flg = false;
         for sender in &*self.to_resonance_sender_vec {
-            sender.send(ResonanceRequest {
+            match sender.send(ResonanceRequest {
                     request_type: ResonanceRequestType::Exit,
                     sound_data_arc: None,
-            })?;
-        }
-
-        print!("Split Resonance Thread Close....");
-        if let Some(thread_vec) = Arc::get_mut(&mut self.thread_vec) {
-            loop {
-                if let Some(thread) = thread_vec.pop() {
-                    match thread.join() {
-                        Ok(_ret) => {
-                            println!("Ok!");
-                        }
-                        Err(_err) => {
-                            println!("Error!");
-                        }
-                    }
+            }) {
+                Ok(_) => {
+                    // Ok!
                 }
-                else {
-                    println!("All Resonance Thread Closed!");
-                    break;
+                Err(_err) => {
+                    println!("Send Exit Thread Request Error!");
+                    err_flg = true;
                 }
             }
         }
-        else {
 
+        if !self.thread_vec.is_empty() {
+            print!("Split Resonance Thread Close....");
+            if let Some(thread_vec) = Arc::get_mut(&mut self.thread_vec) {
+                loop {
+                    if let Some(thread) = thread_vec.pop() {
+                        match thread.join() {
+                            Ok(_ret) => {
+                                // Ok!
+                            }
+                            Err(_err) => {
+                                println!("Send Exit Thread Request Error!");
+                                err_flg = true;
+                            }
+                        }
+                    }
+                    else {
+                        if !err_flg {
+                            println!("Ok!");
+                        }
+                        break;
+                    }
+                }
+            }
+            else {
+                println!("Could not get thread_vec mutable!");
+                err_flg = true;
+            }
         }
-
+        // Clear to_resonance_sender_vec (to ignore when Drop)
+        if let Some(sender_vec) = Arc::get_mut(&mut self.to_resonance_sender_vec) {
+            sender_vec.clear();
+        }
+        else {
+            println!("Could not get sender_vec mutable!");
+            err_flg = true;
+        }
+        if err_flg {
+            return Err(ResonanceError::new("Could not get thread_vec mutable!"));
+        }
         Ok(())
     }
 }
 
-
-
-
+// auto exit
 impl Drop for Resonance {
     fn drop(&mut self) {
+        for sender in &*self.to_resonance_sender_vec {
+            match sender.send(ResonanceRequest {
+                    request_type: ResonanceRequestType::Exit,
+                    sound_data_arc: None,
+            }) {
+                Ok(_) => {
+                    // Ok!
+                }
+                Err(_err) => {
+                    println!("Error in Resonance Drop! Send Exit Thread Request Error!");
+                }
+            }
+        }
 
+        if !self.thread_vec.is_empty() {
+            print!("Split Resonance Thread Close....");
+            if let Some(thread_vec) = Arc::get_mut(&mut self.thread_vec) {
+                loop {
+                    if let Some(thread) = thread_vec.pop() {
+                        match thread.join() {
+                            Ok(_ret) => {
+                                // Ok!
+                            }
+                            Err(_err) => {
+                                println!("Error!");
+                            }
+                        }
+                    }
+                    else {
+                        println!("Ok!");
+                        break;
+                    }
+                }
+            }
+            else {
+                println!("Error in Resonance Drop. Could not get thread_vec mutable!");
+            }
+        }
     }
 }
 

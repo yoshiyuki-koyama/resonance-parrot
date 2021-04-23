@@ -106,7 +106,7 @@ fn resonance_parrot() -> Result<()> {
 
     to_display_sender.send(DisplayRequest::open(base_track.file_path.to_string_lossy().to_string(),base_track.sampling_rate,base_track.bits,base_track.ch_vec.len())?)?;
     to_timeline_sender.send(TimelineRequest::open(base_track.ch_vec[0].len(), base_track.sampling_rate, base_track.sampling_rate/100))?;
-    let resonance = Resonance::new(440.0, base_track.sampling_rate, base_track.ch_vec.len(), 3)?;
+    let mut resonance = Resonance::new(440.0, base_track.sampling_rate, base_track.ch_vec.len(), 3)?;
 
     loop {
         let event = event_receiver.recv()?;
