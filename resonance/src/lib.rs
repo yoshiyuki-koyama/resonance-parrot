@@ -211,13 +211,13 @@ impl Resonance {
         let data_period = 1.0/f64::from(u32::try_from(data_frequency)?);
 
         for ch_idx in 0..ch_num {
-            for _split_idx in 0..thread_per_ch {
+            for split_idx in 0..thread_per_ch {
                 let split_spring_vec;
-                if spring_constant_vec.len() <= split_pitch_range {
-                    split_spring_vec = spring_constant_vec.clone();
+                if split_idx < thread_per_ch - 1 {
+                    split_spring_vec = spring_constant_vec[split_pitch_range*split_idx..split_pitch_range*(split_idx+1)].to_vec();
                 }
                 else{ 
-                    split_spring_vec = spring_constant_vec.drain(..split_pitch_range).collect();
+                    split_spring_vec = spring_constant_vec[split_pitch_range*split_idx..].to_vec();
                 }
 
                 let (to_resonance_sender, to_resonance_receiver) = channel::<ResonanceRequest>(); // data
