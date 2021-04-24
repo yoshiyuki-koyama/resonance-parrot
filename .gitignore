@@ -11,6 +11,7 @@ Cargo.lock
 
 # .wav
 **.wav
+**.pkf
 
 # .csv .xlsx
 **.csv
