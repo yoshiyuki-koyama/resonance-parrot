@@ -142,7 +142,7 @@ pub struct ContentsStatus {
     input_info: InputInfo,
     time_idx: usize,
     vbar_meter_sound: Vec<VbarMeter>,
-    vbar_meter_spectrum: Vec<VbarMeter>,
+    vbar_meter_spectrum: Vec<Vec<VbarMeter>>, // ch<Vbar<VbarMeter>>
     range: NoteRange,
 }
 
@@ -183,6 +183,10 @@ impl TerminalDisplay {
         })
     }
 
+    pub fn push(&mut self, string: String) {
+        self.string.push_str(&string);
+    }
+    
     pub fn push_one_line(&mut self, string: String) {
         self.string.push_str(&string);
         self.string.push('\n');
@@ -357,7 +361,7 @@ impl VbarMeter {
             }
         }
         vbar_string.push_str("\u{001B}[37m"); // white
-        vbar_string.push(']');
+        vbar_string.push_str("]  ");
         vbar_string.push_str("\u{001B}[0m"); // reset
         vbar_string
     }
@@ -406,10 +410,14 @@ fn reset_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
     let range = &terminal.contents.range;
     terminal.contents.vbar_meter_spectrum = Vec::new();
     for _ in 0..terminal.contents.input_info.ch_num {
-        for label_idx in (0..range.end_idx-range.stt_idx).rev() { // Freq Bar is Reversed
+        terminal.contents.vbar_meter_spectrum.push(Vec::new());
+    }
+
+    for label_idx in (0..range.end_idx-range.stt_idx).rev() { // Freq Bar is Reversed
+        for ch_idx in 0..terminal.contents.input_info.ch_num {
             let vbar_label = set_vbar_meter_spectrum_label(label_idx, range.end_idx-range.stt_idx, SPN_LABEL[range.stt_idx+label_idx]);
             let vbar_meter = VbarMeter::new(vbar_label, 10, 0.0, 0.005, 40, Some(0.6), Some(0.8))?;
-            terminal.contents.vbar_meter_spectrum.push(vbar_meter);
+            terminal.contents.vbar_meter_spectrum[ch_idx].push(vbar_meter);
         }
     }
     Ok(())
@@ -432,8 +440,15 @@ fn print_blank_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
         terminal.push_one_line(terminal.contents.vbar_meter_sound[idx].set_value(0.0));
     }
     terminal.push_one_line("".to_string());
-    for idx in 0..terminal.contents.vbar_meter_spectrum.len() {
-        terminal.push_one_line(terminal.contents.vbar_meter_spectrum[idx].set_value(0.0));
+    for idx in 0..terminal.contents.vbar_meter_spectrum[0].len() {
+        for ch_idx in 0..terminal.contents.vbar_meter_spectrum.len() {
+            if ch_idx < terminal.contents.vbar_meter_spectrum.len() - 1 {
+                terminal.push(terminal.contents.vbar_meter_spectrum[ch_idx][idx].set_value(0.0));
+            }
+            else {
+                terminal.push_one_line(terminal.contents.vbar_meter_spectrum[ch_idx][idx].set_value(0.0));
+            }
+        }
     }
     terminal.print_and_flush()?;
     terminal.back_to_home_line()?;
@@ -545,17 +560,31 @@ fn display_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> 
                 terminal.push_one_line("".to_string());
 
                 // channel<freq<data<energy>>>
-                for (ch_idx, ch) in spectrum_vec_arc.iter().enumerate() {
+                let mut ch_val_vec:Vec<Vec<f64>> = Vec::new();
+                for ch in &*spectrum_vec_arc {
+                    let mut freq_val_vec: Vec<f64> = Vec::new();
                     // Freq Bar is Reversed
-                    for (freq_idx, freq) in ch[terminal.contents.range.stt_idx..terminal.contents.range.end_idx].iter().rev().enumerate() {
+                    for freq in ch[terminal.contents.range.stt_idx..terminal.contents.range.end_idx].iter().rev() {
                         let mut max = 0.0;
                         for data_idx in 0..freq.len() {
                             let tmp = freq[data_idx].abs();
                             if tmp > max {
                                 max = tmp;
                             }
+
                         }
-                        terminal.push_one_line(terminal.contents.vbar_meter_spectrum[freq_idx + ch_idx*(terminal.contents.range.end_idx-terminal.contents.range.stt_idx)].set_value(max));
+                        freq_val_vec.push(max);
+                    }
+                    ch_val_vec.push(freq_val_vec);
+                }
+                for freq_idx in 0..ch_val_vec[0].len() {
+                    for ch_idx in 0..ch_val_vec.len() {
+                        if ch_idx < terminal.contents.vbar_meter_spectrum.len() - 1 {
+                            terminal.push(terminal.contents.vbar_meter_spectrum[ch_idx][freq_idx].set_value(ch_val_vec[ch_idx][freq_idx]));
+                        }
+                        else {
+                            terminal.push_one_line(terminal.contents.vbar_meter_spectrum[ch_idx][freq_idx].set_value(ch_val_vec[ch_idx][freq_idx]));
+                        }
                     }
                 }
                 terminal.print_and_flush()?;
