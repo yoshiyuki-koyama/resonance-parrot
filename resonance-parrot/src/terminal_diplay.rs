@@ -372,8 +372,8 @@ fn set_vbar_meter_ch_label(ch_idx: usize, ch_len: usize) -> String {
         1 => { r"  Mono:".to_string() },
         2 => {
             match ch_idx {
-                0 => r"/ L_ch :".to_string(),
-                _ => r"\ R_ch :".to_string()
+                0 => r"/ L_ch  ".to_string(),
+                _ => r"\ R_ch  ".to_string()
             }
         }
         _ =>  {
@@ -383,7 +383,7 @@ fn set_vbar_meter_ch_label(ch_idx: usize, ch_len: usize) -> String {
                 _ =>  r"| ".to_string(),
             };
             vbar_label.push_str(&(ch_idx+1).to_string());
-            vbar_label.push_str("_ch :");
+            vbar_label.push_str("_ch  ");
             vbar_label
         }
     }
@@ -395,7 +395,7 @@ fn set_vbar_meter_spectrum_label(idx:usize, freq_len:usize, spn_label:&str) -> S
         n if (n == freq_len-1) => r"/".to_string(),
         _ =>  r"|".to_string(),
     };
-    format!("{} {}:", bar_label, spn_label)
+    format!("{} {} ", bar_label, spn_label)
 }
 
 fn reset_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
