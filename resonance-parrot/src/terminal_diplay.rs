@@ -23,6 +23,7 @@ fn f64_to_u32(f64_val:f64) -> u32 {
 
 #[derive(Clone)]
 #[derive(PartialEq)]
+#[allow(dead_code)]
 enum DisplayRequestType {
     Open,
     ChangeRange,
@@ -53,6 +54,7 @@ pub struct DisplayRequest {
     input_info: Option<InputInfo>,
 }
 
+#[allow(dead_code)]
 impl DisplayRequest {
     pub fn open( name: String, sampling_rate: usize, bits: usize, ch_num: usize) -> Result<DisplayRequest> {
         Ok(DisplayRequest {
@@ -326,6 +328,7 @@ impl VbarMeter {
         })
     }
 
+    #[allow(dead_code)]
     fn update_label(&mut self, label: String, label_len: usize) {
         let mut adjusted_len_label = label.clone();
         if adjusted_len_label.len() > label_len {

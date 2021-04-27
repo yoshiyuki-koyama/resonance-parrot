@@ -98,6 +98,7 @@ impl TimelineStatus {
 
 #[derive(Clone)]
 #[derive(PartialEq)]
+#[allow(dead_code)]
 pub enum TimelineRequestType {
     Open,
     Close,
@@ -115,6 +116,7 @@ pub struct TimelineRequest {
     op_base:Option<TimelineBase>
 }
 
+#[allow(dead_code)]
 impl TimelineRequest {
     pub fn open(len: usize, frequency: usize, event_divisor: usize) -> TimelineRequest {
         TimelineRequest {

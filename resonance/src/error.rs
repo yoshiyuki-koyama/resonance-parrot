@@ -35,6 +35,7 @@ pub struct ResonanceWarning {
     pub message: String,
 }
 
+#[allow(dead_code)]
 impl ResonanceWarning {
     pub fn new(err_str: &str)  -> Box<dyn std::error::Error> {
         Box::<ResonanceWarning>::new( ResonanceWarning{ message:err_str.to_string()})
