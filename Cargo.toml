@@ -6,3 +6,6 @@ members = [
     "wavfile",
     "kb-getch-sys",
 ]
+
+[profile.dev.package.resonance]
+opt-level = 3
