@@ -1,6 +1,6 @@
 use std::fmt;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[derive(Debug, Clone)]
 pub struct WavFileError {
@@ -8,7 +8,7 @@ pub struct WavFileError {
 }
 
 impl WavFileError {
-    pub fn new(err_str: &str)  -> Box<dyn std::error::Error> {
+    pub fn new(err_str: &str)  -> Box<dyn std::error::Error + Send + Sync + 'static> {
         Box::<WavFileError>::new( WavFileError{ message:err_str.to_string()})
     }
 }

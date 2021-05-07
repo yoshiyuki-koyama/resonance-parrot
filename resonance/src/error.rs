@@ -1,6 +1,6 @@
 use std::fmt;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 
 #[derive(Debug, Clone)]
@@ -9,7 +9,7 @@ pub struct ResonanceError {
 }
 
 impl ResonanceError {
-    pub fn new(err_str: &str)  -> Box<dyn std::error::Error> {
+    pub fn new(err_str: &str)  -> Box<dyn std::error::Error + Send + Sync + 'static> {
         Box::<ResonanceError>::new( ResonanceError{ message:err_str.to_string()})
     }
 }

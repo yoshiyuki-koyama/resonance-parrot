@@ -7,7 +7,6 @@ use std::f64::consts::PI;
 use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Sender, Receiver};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 
@@ -41,6 +40,7 @@ pub const SPN_LABEL: [&str; SPN_NUM] = [ //Scientific Pitch Notation
     "A8",
 ];
 
+#[repr(usize)]
 pub enum SpnIdx { // Scientific Pitch Notation
     A0,AsBf0,B0,C1,CsDf1,D1,DsEf1,E1,F1,FsGf1,G1,GsAf1,
     A1,AsBf1,B1,C2,CsDf2,D2,DsEf2,E2,F2,FsGf2,G2,GsAf2,
@@ -140,12 +140,12 @@ impl SplitResonance {
 pub struct Resonance {
     ch_num:usize,
     thread_per_ch: usize,
-    thread_vec: Arc<Vec<thread::JoinHandle<AtomicBool>>>,
+    thread_vec: Arc<Vec<thread::JoinHandle<Result<()>>>>,
     to_resonance_sender_vec: Arc<Vec<Sender<ResonanceRequest>>>,
     from_resonance_receiver_vec: Arc<Vec<Receiver<ResonanceReport>>>,
 }
 
-fn resonance_main( from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
+fn resonance_thread( from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
     split_spring_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> Result<()> {
     
     let mut split_resonance = SplitResonance::new(split_spring_vec, data_period, ch_idx)?;
@@ -169,20 +169,6 @@ fn resonance_main( from_resonanance_sender: Sender<ResonanceReport>, to_resonanc
     Ok(())
 }
 
-fn resonance_thread(
-    from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
-    split_spring_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> AtomicBool {
-    match resonance_main(from_resonanance_sender, to_resonance_receiver, split_spring_vec, data_period, ch_idx){
-        Ok(_) => {
-            AtomicBool::new(true)
-        }
-        Err(err) => {
-            println!("Resonance Thread Error! : {}", err);
-            AtomicBool::new(false)
-        }
-    }
-}
-
 impl Resonance {
     pub fn new(pitch_standard_frequency: f64, data_frequency: usize, ch_num:usize, thread_per_ch: usize) -> Result<Resonance>  {
         if thread_per_ch == 0 {
@@ -191,7 +177,7 @@ impl Resonance {
 
         let mut to_resonance_sender_vec: Vec<Sender<ResonanceRequest>> = Vec::new();
         let mut from_resonance_receiver_vec: Vec<Receiver<ResonanceReport>> = Vec::new();
-        let mut resonance_thread_instanse_vec: Vec<thread::JoinHandle<AtomicBool>> = Vec::new();
+        let mut resonance_thread_instanse_vec: Vec<thread::JoinHandle<Result<()>>> = Vec::new();
 
         let mut spring_constant_vec: Vec<f64> = Vec::new();
         for i in LOWEST_PITCH_IDX..HIGHEST_PITCH_IDX+1 {

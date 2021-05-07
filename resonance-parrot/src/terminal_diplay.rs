@@ -1,5 +1,4 @@
 use std::io::{Write, BufWriter, stderr};
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::convert::TryFrom;
@@ -63,8 +62,8 @@ impl DisplayRequest {
             sound_vec_arc: None,
             spectrum_vec_arc: None,
             abs_range: Some(NoteRange{
-                stt_idx:usize::try_from(SpnIdx::A2 as i32)?,
-                end_idx:usize::try_from(SpnIdx::A5 as i32)?+1
+                stt_idx:SpnIdx::A2 as usize,
+                end_idx:SpnIdx::A5 as usize + 1
             }),
             rel_range: None,
             input_info: Some(InputInfo{name: name, sampling_rate: sampling_rate, bits: bits, ch_num: ch_num}),
@@ -77,8 +76,8 @@ impl DisplayRequest {
             sound_vec_arc: None,
             spectrum_vec_arc: None,
             abs_range: Some(NoteRange{
-                stt_idx:usize::try_from(lowest_note as i32)?,
-                end_idx:usize::try_from(highest_note as i32)?+1
+                stt_idx:lowest_note as usize,
+                end_idx:highest_note as usize +1
             }),
             rel_range: None,
             input_info: None,
@@ -178,8 +177,8 @@ impl TerminalDisplay {
                 vbar_meter_sound: Vec::new(),
                 vbar_meter_spectrum: Vec::new(),
                 range: NoteRange {
-                    stt_idx:usize::try_from(SpnIdx::A3 as i32)?,
-                    end_idx:usize::try_from(SpnIdx::A4 as i32)?+1
+                    stt_idx:SpnIdx::A3 as usize,
+                    end_idx:SpnIdx::A4 as usize + 1
                 }
             }   
         })
@@ -458,7 +457,7 @@ fn print_blank_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
     Ok(())
 }
 
-fn display_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> {
+pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> {
     let mut terminal = TerminalDisplay::new()?;
 
     loop {
@@ -607,21 +606,4 @@ fn display_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> 
     terminal.erase_display_from_cusor_to_end()?;
 
     Ok(true)
-}
-
-pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) -> AtomicBool {  
-    match display_main(to_display_receiver) {
-         Ok(bool_ret) => {
-             if bool_ret {
-                 AtomicBool::new(true)
-             }
-             else {
-                 AtomicBool::new(false)
-             }
-         }
-         Err(err) => {
-             println!("Error! : {}", err);
-             AtomicBool::new(false)
-         }
-     }
 }

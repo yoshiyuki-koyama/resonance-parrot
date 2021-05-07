@@ -2,7 +2,6 @@ use std::time;
 
 use std::convert::TryFrom;
 
-use std::sync::atomic::{AtomicBool};
 use std::sync::mpsc::{Sender, Receiver};
 
 use super::error::*;
@@ -282,30 +281,9 @@ impl TimeLine {
     }
 }
 
-pub fn timeline_thread(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> AtomicBool {
-    match to_timeline_receiver.recv() {
-        Ok(request) => {
-            match TimeLine::new(request, event_sender, from_timeline_sender, to_timeline_receiver) {
-                Ok(mut timeline) => {
-                    match timeline.main() {
-                        Ok(_) => {
-                            AtomicBool::new(true)
-                        },
-                        Err(err) => {
-                            println!("Error!!! {}",err);
-                            AtomicBool::new(false)
-                        }
-                    }
-                },
-                Err(err) => {
-                    println!("Error!!! {}",err);
-                    AtomicBool::new(false)
-                }
-            }
-        },
-        Err(err) => {
-            println!("Error!!! {}",err);
-            AtomicBool::new(false)
-        }
-    }
+pub fn timeline_thread(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> Result<()> {
+    let request = to_timeline_receiver.recv()?;
+    let mut timeline = TimeLine::new(request, event_sender, from_timeline_sender, to_timeline_receiver)?;
+    timeline.main()?;
+    Ok(())
 }
