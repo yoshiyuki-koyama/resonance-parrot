@@ -281,9 +281,20 @@ impl TimeLine {
     }
 }
 
-pub fn timeline_thread(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> Result<()> {
+pub fn timeline_thread_main(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> Result<()> {
     let request = to_timeline_receiver.recv()?;
     let mut timeline = TimeLine::new(request, event_sender, from_timeline_sender, to_timeline_receiver)?;
     timeline.main()?;
+    Ok(())
+}
+
+pub fn timeline_thread(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> Result<()> {
+    match timeline_thread_main(event_sender, from_timeline_sender, to_timeline_receiver) {
+        Ok(_ret) => { /* Nothing to do */ }
+        Err(err) => {
+            println!("Error! timeline_thread!");
+            return Err(err);
+        }
+    }
     Ok(())
 }

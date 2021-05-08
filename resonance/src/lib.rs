@@ -145,7 +145,7 @@ pub struct Resonance {
     from_resonance_receiver_vec: Arc<Vec<Receiver<ResonanceReport>>>,
 }
 
-fn resonance_thread( from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
+fn resonance_thread_main( from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
     split_spring_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> Result<()> {
     
     let mut split_resonance = SplitResonance::new(split_spring_vec, data_period, ch_idx)?;
@@ -164,6 +164,18 @@ fn resonance_thread( from_resonanance_sender: Sender<ResonanceReport>, to_resona
             ResonanceRequestType::Exit => {
                 break;
             }
+        }
+    }
+    Ok(())
+}
+
+fn resonance_thread( from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
+    split_spring_vec: Vec<f64>, data_period: f64, ch_idx: usize) -> Result<()> {
+    match resonance_thread_main( from_resonanance_sender, to_resonance_receiver, split_spring_vec, data_period, ch_idx) {
+        Ok(_ret) => { /* Nothing to do */ }
+        Err(err) => {
+            println!("Error! resonance_thread!");
+            return Err(err);
         }
     }
     Ok(())

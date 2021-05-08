@@ -457,7 +457,7 @@ fn print_blank_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
     Ok(())
 }
 
-pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) ->  Result<bool> {
+pub fn display_thread_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<()> {
     let mut terminal = TerminalDisplay::new()?;
 
     loop {
@@ -605,5 +605,16 @@ pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) ->  Result<
     terminal.back_to_initial_line()?;
     terminal.erase_display_from_cusor_to_end()?;
 
-    Ok(true)
+    Ok(())
+}
+
+pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) ->  Result<()> {
+    match display_thread_main(to_display_receiver) {
+        Ok(_ret) => { /* Nothing to do */ }
+        Err(err) => {
+            println!("Error! display_thread!");
+            return Err(err);
+        }
+    }
+    Ok(())
 }

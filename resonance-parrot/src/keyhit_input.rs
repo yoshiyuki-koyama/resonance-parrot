@@ -89,7 +89,7 @@ impl KeyHitInput {
     }
 }
 
-pub fn keyhit_thread(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> Result<()> {
+pub fn keyhit_thread_main(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> Result<()> {
     let sleep_duration = time::Duration::new(0, 1000000); // 1ms
     let keyhit_input = KeyHitInput::new();
     let mut event_id = 0;
@@ -104,6 +104,17 @@ pub fn keyhit_thread(event_sender: Sender<AppEvent>, from_key_sender: Sender<cha
         }
         else {
             thread::sleep(sleep_duration);
+        }
+    }
+    Ok(())
+}
+
+pub fn keyhit_thread(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> Result<()> {
+    match keyhit_thread_main(event_sender, from_key_sender, to_keyhit_receiver) {
+        Ok(_ret) => { /* Nothing to do */ }
+        Err(err) => {
+            println!("Error! keyhit_thread!");
+            return Err(err);
         }
     }
     Ok(())
