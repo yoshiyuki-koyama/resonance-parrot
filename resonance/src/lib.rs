@@ -3,11 +3,13 @@ use error::*;
 
 use std::convert::TryFrom;
 use std::f64::consts::PI;
+use std::rc::Rc;
 
 use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::Arc;
+
 
 
 const LOWEST_PITCH_IDX: isize = -48; // A0 to A8
@@ -140,9 +142,9 @@ impl SplitResonance {
 pub struct Resonance {
     ch_num:usize,
     thread_per_ch: usize,
-    thread_vec: Arc<Vec<thread::JoinHandle<Result<()>>>>,
-    to_resonance_sender_vec: Arc<Vec<Sender<ResonanceRequest>>>,
-    from_resonance_receiver_vec: Arc<Vec<Receiver<ResonanceReport>>>,
+    thread_vec: Rc<Vec<thread::JoinHandle<Result<()>>>>,
+    to_resonance_sender_vec: Rc<Vec<Sender<ResonanceRequest>>>,
+    from_resonance_receiver_vec: Rc<Vec<Receiver<ResonanceReport>>>,
 }
 
 fn resonance_thread_main( from_resonanance_sender: Sender<ResonanceReport>, to_resonance_receiver: Receiver<ResonanceRequest>,
@@ -231,9 +233,9 @@ impl Resonance {
         Ok(Resonance {
             ch_num: ch_num,
             thread_per_ch: thread_per_ch,
-            thread_vec: Arc::new(resonance_thread_instanse_vec),
-            to_resonance_sender_vec: Arc::new(to_resonance_sender_vec),
-            from_resonance_receiver_vec: Arc::new(from_resonance_receiver_vec)
+            thread_vec: Rc::new(resonance_thread_instanse_vec),
+            to_resonance_sender_vec: Rc::new(to_resonance_sender_vec),
+            from_resonance_receiver_vec: Rc::new(from_resonance_receiver_vec)
         })
     }
 
@@ -277,7 +279,7 @@ impl Resonance {
 
         if !self.thread_vec.is_empty() {
             print!("Split Resonance Thread Close....");
-            if let Some(thread_vec) = Arc::get_mut(&mut self.thread_vec) {
+            if let Some(thread_vec) = Rc::get_mut(&mut self.thread_vec) {
                 loop {
                     if let Some(thread) = thread_vec.pop() {
                         match thread.join() {
@@ -304,7 +306,7 @@ impl Resonance {
             }
         }
         // Clear to_resonance_sender_vec (to ignore when Drop)
-        if let Some(sender_vec) = Arc::get_mut(&mut self.to_resonance_sender_vec) {
+        if let Some(sender_vec) = Rc::get_mut(&mut self.to_resonance_sender_vec) {
             sender_vec.clear();
         }
         else {
@@ -337,7 +339,7 @@ impl Drop for Resonance {
 
         if !self.thread_vec.is_empty() {
             print!("Split Resonance Thread Close....");
-            if let Some(thread_vec) = Arc::get_mut(&mut self.thread_vec) {
+            if let Some(thread_vec) = Rc::get_mut(&mut self.thread_vec) {
                 loop {
                     if let Some(thread) = thread_vec.pop() {
                         match thread.join() {
