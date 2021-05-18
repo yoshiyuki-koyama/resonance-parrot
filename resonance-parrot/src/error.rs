@@ -1,6 +1,6 @@
 use std::fmt;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
+pub type RpResult<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 
 #[derive(Debug, Clone)]

@@ -44,7 +44,7 @@ pub struct TimelineStatus {
 }
 
 impl TimelineStatus {
-    fn new(request:TimelineRequest) -> Result<TimelineStatus> {
+    fn new(request:TimelineRequest) -> RpResult<TimelineStatus> {
         if request.op_base.is_none() {
             return Err(ResonanceParrotError::new("All TimeLine Valueables needs to be set the first time!"));
         }
@@ -60,7 +60,7 @@ impl TimelineStatus {
         self.time_counter = 0;
     }
 
-    fn update(&mut self, request:TimelineRequest) -> Result<()> {
+    fn update(&mut self, request:TimelineRequest) -> RpResult<()> {
         match request.request_type {
             TimelineRequestType::PlayOrPause => {
                 match self.play_status {
@@ -181,7 +181,7 @@ impl FrequencySlice {
         }
     }
 
-    fn next_dur(& mut self, timeline: &TimelineStatus) -> Result<Option<time::Duration>> {
+    fn next_dur(& mut self, timeline: &TimelineStatus) -> RpResult<Option<time::Duration>> {
         let sleep_duration : Option<time::Duration>;
         let freq = timeline.base.frequency;
     
@@ -214,7 +214,7 @@ struct TimeLine {
 
 #[allow(dead_code)]
 impl TimeLine {
-    fn new(request: TimelineRequest,event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> Result<TimeLine> {
+    fn new(request: TimelineRequest,event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> RpResult<TimeLine> {
         Ok(TimeLine {
             timeline: TimelineStatus::new(request)?,
             freq_slice:  FrequencySlice::new(0),
@@ -225,7 +225,7 @@ impl TimeLine {
         })
     }
 
-    fn main(&mut self) -> Result<()> {
+    fn main(&mut self) -> RpResult<()> {
         loop {
             let op_dur = self.freq_slice.next_dur(&self.timeline)?;
             let res_request;
@@ -269,7 +269,7 @@ impl TimeLine {
         Ok(())
     }
 
-    fn send(&mut self, report_type: TimelineReportType) -> Result<()> {
+    fn send(&mut self, report_type: TimelineReportType) -> RpResult<()> {
         let timeline_report = TimelineReport {
             report_type: report_type,
             timeline: self.timeline.clone()
@@ -281,14 +281,14 @@ impl TimeLine {
     }
 }
 
-pub fn timeline_thread_main(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> Result<()> {
+pub fn timeline_thread_main(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> RpResult<()> {
     let request = to_timeline_receiver.recv()?;
     let mut timeline = TimeLine::new(request, event_sender, from_timeline_sender, to_timeline_receiver)?;
     timeline.main()?;
     Ok(())
 }
 
-pub fn timeline_thread(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> Result<()> {
+pub fn timeline_thread(event_sender: Sender<AppEvent>, from_timeline_sender: Sender<TimelineReport>, to_timeline_receiver: Receiver<TimelineRequest>) -> RpResult<()> {
     match timeline_thread_main(event_sender, from_timeline_sender, to_timeline_receiver) {
         Ok(_ret) => { /* Nothing to do */ }
         Err(err) => {

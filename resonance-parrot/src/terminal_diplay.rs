@@ -55,7 +55,7 @@ pub struct DisplayRequest {
 
 #[allow(dead_code)]
 impl DisplayRequest {
-    pub fn open( name: String, sampling_rate: usize, bits: usize, ch_num: usize) -> Result<DisplayRequest> {
+    pub fn open( name: String, sampling_rate: usize, bits: usize, ch_num: usize) -> RpResult<DisplayRequest> {
         Ok(DisplayRequest {
             request_type: DisplayRequestType::Open,
             time_idx: Some(0),
@@ -69,7 +69,7 @@ impl DisplayRequest {
             input_info: Some(InputInfo{name: name, sampling_rate: sampling_rate, bits: bits, ch_num: ch_num}),
         })
     }
-    pub fn change_abs_range(lowest_note: SpnIdx, highest_note: SpnIdx) -> Result<DisplayRequest> {
+    pub fn change_abs_range(lowest_note: SpnIdx, highest_note: SpnIdx) -> RpResult<DisplayRequest> {
         Ok(DisplayRequest {
             request_type: DisplayRequestType::ChangeRange,
             time_idx: None,
@@ -163,7 +163,7 @@ pub struct TerminalDisplay {
 
 #[allow(dead_code)]
 impl TerminalDisplay {
-    pub fn new() -> Result<TerminalDisplay> {
+    pub fn new() -> RpResult<TerminalDisplay> {
         Ok(TerminalDisplay {
             vertical_pos:0,
             horizontal_pos:0,
@@ -194,7 +194,7 @@ impl TerminalDisplay {
         self.vertical_pos += 1;
     }
 
-    pub fn print_and_flush(&mut self)  -> Result<()> {
+    pub fn print_and_flush(&mut self)  -> RpResult<()> {
         let stderr = stderr();
         let stderr_lock = stderr.lock();
         let mut buf_writer = BufWriter::new(stderr_lock);
@@ -204,14 +204,14 @@ impl TerminalDisplay {
         Ok(())
     }
 
-    pub fn display_one_line (&mut self, string: String) -> Result<()> {
+    pub fn display_one_line (&mut self, string: String) -> RpResult<()> {
         println!("{}", string);
         std::io::stderr().flush()?;
         self.vertical_pos += 1;
         Ok(())
     }
 
-    pub fn display_lines (&mut self, string: String) -> Result<()> {
+    pub fn display_lines (&mut self, string: String) -> RpResult<()> {
         print!("{}", string);
         std::io::stderr().flush()?;
         self.vertical_pos += string.lines().count();
@@ -229,11 +229,11 @@ impl TerminalDisplay {
     }
 
 
-    pub fn back_to_home_line(&mut self) -> Result<()> {
+    pub fn back_to_home_line(&mut self) -> RpResult<()> {
         self.back_to_the_line(self.vertical_home_pos)
     }
 
-    pub fn back_to_the_line(&mut self, vertical_pos: usize) -> Result<()> {
+    pub fn back_to_the_line(&mut self, vertical_pos: usize) -> RpResult<()> {
         while self.vertical_pos > vertical_pos {
             self.string.push_str("\u{001B}[1A");
             self.vertical_pos -= 1;
@@ -241,16 +241,16 @@ impl TerminalDisplay {
         self.print_and_flush()
     }
 
-    pub fn back_to_initial_line (&mut self) -> Result<()> {
+    pub fn back_to_initial_line (&mut self) -> RpResult<()> {
         self.back_to_the_line(0)
     }
 
-    pub fn erase_display_from_cusor_to_end (&mut self) -> Result<()> {
+    pub fn erase_display_from_cusor_to_end (&mut self) -> RpResult<()> {
         self.string.push_str("\u{001B}[0J");
         self.print_and_flush()
     }
 
-    pub fn erase_display (&mut self) -> Result<()> {
+    pub fn erase_display (&mut self) -> RpResult<()> {
         self.string.push_str("\u{001B}[2J");
         self.print_and_flush()
     }
@@ -271,7 +271,7 @@ pub struct VbarMeter {
 impl VbarMeter {
     fn new( label: String, label_len: usize, min: f64, max: f64, divsor: u32,  
         op_yellow_value: Option<f64>, op_red_value: Option<f64>)
-        -> Result<VbarMeter> {
+        -> RpResult<VbarMeter> {
         let f64_divsor : f64 =  f64::from(divsor);
         if min >= max {
             return Err(ResonanceParrotError::new("Set Value Error in VbarMeter !"));
@@ -400,7 +400,7 @@ fn set_vbar_meter_spectrum_label(idx:usize, freq_len:usize, spn_label:&str) -> S
     format!("{} {} ", bar_label, spn_label)
 }
 
-fn reset_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
+fn reset_vbar(terminal :&mut TerminalDisplay) -> RpResult<()>{
     // Sound
     terminal.contents.vbar_meter_sound = Vec::new();
     for ch_idx in 0..terminal.contents.input_info.ch_num {
@@ -425,7 +425,7 @@ fn reset_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
     Ok(())
 }
 
-fn push_time_display(terminal :&mut TerminalDisplay) -> Result<()> {
+fn push_time_display(terminal :&mut TerminalDisplay) -> RpResult<()> {
     if terminal.contents.input_info.sampling_rate == 0 {
         return Err(ResonanceParrotError::new("Display SamplingRate is 0!"));
     }
@@ -435,7 +435,7 @@ fn push_time_display(terminal :&mut TerminalDisplay) -> Result<()> {
     Ok(())
 }
 
-fn print_blank_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
+fn print_blank_vbar(terminal :&mut TerminalDisplay) -> RpResult<()>{
     terminal.back_to_home_line()?;
     push_time_display(terminal)?;
     for idx in 0..terminal.contents.vbar_meter_sound.len() {
@@ -457,7 +457,7 @@ fn print_blank_vbar(terminal :&mut TerminalDisplay) -> Result<()>{
     Ok(())
 }
 
-pub fn display_thread_main(to_display_receiver: Receiver<DisplayRequest>) ->  Result<()> {
+pub fn display_thread_main(to_display_receiver: Receiver<DisplayRequest>) ->  RpResult<()> {
     let mut terminal = TerminalDisplay::new()?;
 
     loop {
@@ -608,7 +608,7 @@ pub fn display_thread_main(to_display_receiver: Receiver<DisplayRequest>) ->  Re
     Ok(())
 }
 
-pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) ->  Result<()> {
+pub fn display_thread(to_display_receiver: Receiver<DisplayRequest>) ->  RpResult<()> {
     match display_thread_main(to_display_receiver) {
         Ok(_ret) => { /* Nothing to do */ }
         Err(err) => {

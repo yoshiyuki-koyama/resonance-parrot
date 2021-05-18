@@ -30,7 +30,7 @@ impl KeyHitInput {
         }
     }
 
-    fn get_following_input(&self, ref_u8_array:&mut [u8; 4], char_size:usize) -> Result<char>{
+    fn get_following_input(&self, ref_u8_array:&mut [u8; 4], char_size:usize) -> RpResult<char>{
         for i in 1..char_size {
             if let Some(tmp_i8) = kb_getch_ffi() {
                 let tmp_ch = tmp_i8 as u8;
@@ -60,7 +60,7 @@ impl KeyHitInput {
         
     }
 
-    fn cli_key_input(&self) -> Result<Option<char>> {
+    fn cli_key_input(&self) -> RpResult<Option<char>> {
         let char_size;
         let mut u8_array:[u8; 4] = [0,0,0,0];
         if let Some(tmp_i8) = kb_getch_ffi() {
@@ -89,7 +89,7 @@ impl KeyHitInput {
     }
 }
 
-pub fn keyhit_thread_main(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> Result<()> {
+pub fn keyhit_thread_main(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> RpResult<()> {
     let sleep_duration = time::Duration::new(0, 1000000); // 1ms
     let keyhit_input = KeyHitInput::new();
     let mut event_id = 0;
@@ -109,7 +109,7 @@ pub fn keyhit_thread_main(event_sender: Sender<AppEvent>, from_key_sender: Sende
     Ok(())
 }
 
-pub fn keyhit_thread(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> Result<()> {
+pub fn keyhit_thread(event_sender: Sender<AppEvent>, from_key_sender: Sender<char>, to_keyhit_receiver: Receiver<KeyHitRequest>) -> RpResult<()> {
     match keyhit_thread_main(event_sender, from_key_sender, to_keyhit_receiver) {
         Ok(_ret) => { /* Nothing to do */ }
         Err(err) => {

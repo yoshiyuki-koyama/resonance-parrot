@@ -2,6 +2,7 @@
 
 members = [
     "resonance-parrot",
+    "resonance-parrot/bindings",
     "resonance",
     "wavfile",
     "kb-getch-sys",
