@@ -1,37 +1,21 @@
-#[allow(unused_imports)]
 use bindings::Windows::Win32::System::SystemServices::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::System::Com::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::System::Diagnostics::Debug::*;
-#[allow(unused_imports)]
-use bindings::Windows::Foundation::Numerics::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::UI::WindowsAndMessaging::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::UI::MenusAndResources::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::UI::Controls::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::UI::KeyboardAndMouseInput::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::UI::Shell::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::UI::DisplayDevices::*;
-#[allow(unused_imports)]
 use bindings::Windows::Win32::UI::HiDpi::*;
-#[allow(unused_imports)]
-use bindings::Windows::Win32::Graphics::Gdi::*;
-#[allow(unused_imports)]
+//use bindings::Windows::Win32::Graphics::Gdi::*;
 use bindings::Windows::Win32::Graphics::Direct2D::*;
-#[allow(unused_imports)]
-use bindings::Windows::Win32::Graphics::Dxgi::*;
 use windows::HRESULT;
 
 
 
 
-
+use std::rc::Rc;
 
 use std::{mem::size_of, thread};
 use std::sync::mpsc::channel;
@@ -55,6 +39,12 @@ use terminal_diplay::*;
 
 mod keyhit_input;
 use keyhit_input::*;
+
+mod bottons;
+use bottons::*;
+
+mod windows_util;
+use windows_util::*;
 
 #[cfg(test)]
 mod tests {
@@ -134,37 +124,9 @@ fn set_gain(ref_data_vec:&mut Vec<i64>, db:&f64) {
 }
 
 
-fn pwstr_to_string( pwstr: &PWSTR)->RpResult<String> {
-    if pwstr.0.is_null() {
-        return Err(ResonanceParrotError::new("Error: PWSTR is NULL"));
-    }
-    let mut pwstr_end: *mut u16 = pwstr.0;
-    let mut pwstr_size: usize = 0;
-    unsafe {
-        loop {
-            if *pwstr_end == 0 {
-                break;
-            }
-            else {
-                pwstr_end = pwstr_end.add(1);
-                pwstr_size+=1;
-            }
-        }
-        let u16_str: &[u16] = std::slice::from_raw_parts(pwstr.0, pwstr_size);
-        Ok(String::from_utf16_lossy(u16_str))
-    }
-}
 
-unsafe fn get_client_size(hwnd: HWND)  -> RpResult<D2D_SIZE_U> {
-    let mut rect: RECT = RECT::default();
-    if GetClientRect(hwnd, &mut rect).0 == 0 {
-        return Err(ResonanceParrotError::new("Error: GetClientRect is Failed"));
-    }
-    Ok(D2D_SIZE_U {
-        width: u32::try_from(rect.right - rect.left)?,
-        height: u32::try_from(rect.bottom - rect.top)?,
-    })
-}
+
+
 
 //unsafe fn invalidate_client_rect(hwnd: HWND)  -> RpResult<()> {
 //    let mut rect: RECT = RECT::default();
@@ -177,97 +139,7 @@ unsafe fn get_client_size(hwnd: HWND)  -> RpResult<D2D_SIZE_U> {
 //    Ok(())
 //}
 
-unsafe fn create_hwnd_render_target(hwnd: HWND, op_factory: &Option<ID2D1Factory>) -> RpResult<Option<ID2D1HwndRenderTarget>> {
-    let mut op_render_target: Option<ID2D1HwndRenderTarget> = None;
-    let target_properties = D2D1_RENDER_TARGET_PROPERTIES::default();
-    if let Some(factory) = op_factory {
-        factory.CreateHwndRenderTarget(
-            &target_properties,
-            &D2D1_HWND_RENDER_TARGET_PROPERTIES {
-                hwnd: hwnd, pixelSize: get_client_size(hwnd)?, presentOptions: D2D1_PRESENT_OPTIONS_IMMEDIATELY,
-            },
-            &mut op_render_target,
-        ).ok()?;
-    }
-    Ok(op_render_target)
-}
 
-unsafe fn create_dc_render_target(hwnd: HWND, op_factory: &Option<ID2D1Factory>) -> RpResult<Option<ID2D1DCRenderTarget>> {
-    let mut op_render_target: Option<ID2D1DCRenderTarget> = None;
-    let mut target_properties = D2D1_RENDER_TARGET_PROPERTIES::default();
-    target_properties.pixelFormat = D2D1_PIXEL_FORMAT{ format: DXGI_FORMAT_B8G8R8A8_UNORM, alphaMode: D2D1_ALPHA_MODE_IGNORE };
-    if let Some(factory) = op_factory {
-        factory.CreateDCRenderTarget(
-            &target_properties,
-            &mut op_render_target,
-        ).ok()?;
-    }
-    Ok(op_render_target)
-}
-
-
-unsafe fn create_hwnd_solid_brush(op_render_target: &Option<ID2D1HwndRenderTarget>, color: &D2D1_COLOR_F) -> RpResult<ID2D1SolidColorBrush> {
-    let mut op_brush: Option<ID2D1SolidColorBrush> = None;
-    if let Some(render_target) = op_render_target {
-        render_target.CreateSolidColorBrush(
-            color,
-            &D2D1_BRUSH_PROPERTIES {
-                opacity: 1.0,
-                transform: Matrix3x2::default(),
-            },
-            &mut op_brush,
-        ).ok()?;
-    }
-    if let Some(brush) = op_brush {
-        return Ok(brush);
-    }
-    else {
-        return Err(ResonanceParrotError::new("Error: CreateSolidColorBrush is failed"));
-    }
-}
-
-unsafe fn create_dc_solid_brush(op_render_target: &Option<ID2D1DCRenderTarget>, color: &D2D1_COLOR_F) -> RpResult<ID2D1SolidColorBrush> {
-    let mut op_brush: Option<ID2D1SolidColorBrush> = None;
-    if let Some(render_target) = op_render_target {
-        render_target.CreateSolidColorBrush(
-            color,
-            &D2D1_BRUSH_PROPERTIES {
-                opacity: 1.0,
-                transform: Matrix3x2::default(),
-            },
-            &mut op_brush,
-        ).ok()?;
-    }
-    if let Some(brush) = op_brush {
-        return Ok(brush);
-    }
-    else {
-        return Err(ResonanceParrotError::new("Error: CreateSolidColorBrush is failed"));
-    }
-}
-
-fn rect_itof(rect: &RECT) -> D2D_RECT_F {
-    D2D_RECT_F {
-        left: f64::from(rect.left) as f32,
-        right: f64::from(rect.right) as f32,
-        top: f64::from(rect.top) as f32,
-        bottom: f64::from(rect.bottom) as f32,
-    }
-}
-
-#[derive(Clone, Copy)]
-#[derive(PartialEq)]
-#[repr(usize)]
-enum AnchorConer {
-    LeftTop,
-    RightTop,
-    LeftBottom,
-    RightBottom,
-    HcenterTop,
-    HcenterBottom,
-    LeftVcenter,
-    RightVcenter,
-}
 
 #[derive(Clone, Copy)]
 #[derive(PartialEq)]
@@ -284,7 +156,7 @@ enum MenuItemID {
     Separater,
 }
 struct MenuItemConstInfo {
-    menu_id: MenuItemID,
+    id: MenuItemID,
     hierarchy: usize,
     initial_status: MENU_ITEM_FLAGS,
     name_str: &'static str,
@@ -299,149 +171,21 @@ struct MenuItemConstInfo {
 // 3) If a item has not a submenu and has a next item, next row is the next item.
 // 4) If item NEITHER has a submenu NOR a next item, next row is the next item of parent.
 const MENU_ITEMS :[MenuItemConstInfo; 9] = [
-    MenuItemConstInfo{   menu_id: MenuItemID::File,          hierarchy: 0, initial_status: MF_POPUP,     name_str: "File",            op_func:None,},
-    MenuItemConstInfo{   menu_id: MenuItemID::Fopen,         hierarchy: 1, initial_status: MF_ENABLED,   name_str: "Open File",       op_func:Some(MainWindow::on_menu_fopen),},
-    MenuItemConstInfo{   menu_id: MenuItemID::Fclose,        hierarchy: 1, initial_status: MF_DISABLED,  name_str: "Close File",      op_func:Some(MainWindow::on_menu_fclose),},
-    MenuItemConstInfo{   menu_id: MenuItemID::Save,          hierarchy: 1, initial_status: MF_DISABLED,  name_str: "Save",            op_func:Some(MainWindow::on_menu_save),},
-    MenuItemConstInfo{   menu_id: MenuItemID::SaveAs,        hierarchy: 1, initial_status: MF_DISABLED,  name_str: "Save As",         op_func:Some(MainWindow::on_menu_saveas),},
-    MenuItemConstInfo{   menu_id: MenuItemID::Separater,     hierarchy: 1, initial_status: MF_SEPARATOR, name_str: "",                op_func:None,},
-    MenuItemConstInfo{   menu_id: MenuItemID::Exit,          hierarchy: 1, initial_status: MF_ENABLED,   name_str: "Exit",            op_func:Some(MainWindow::on_menu_exit),},
-    MenuItemConstInfo{   menu_id: MenuItemID::Help,          hierarchy: 0, initial_status: MF_POPUP,     name_str: "Help",            op_func:None,},
-    MenuItemConstInfo{   menu_id: MenuItemID::About,         hierarchy: 1, initial_status: MF_ENABLED,   name_str: "About",           op_func:Some(MainWindow::on_menu_about),},
+    MenuItemConstInfo{   id: MenuItemID::File,          hierarchy: 0, initial_status: MF_POPUP,     name_str: "File",            op_func:None,},
+    MenuItemConstInfo{   id: MenuItemID::Fopen,         hierarchy: 1, initial_status: MF_ENABLED,   name_str: "Open File",       op_func:Some(MainWindow::on_menu_fopen),},
+    MenuItemConstInfo{   id: MenuItemID::Fclose,        hierarchy: 1, initial_status: MF_DISABLED,  name_str: "Close File",      op_func:Some(MainWindow::on_menu_fclose),},
+    MenuItemConstInfo{   id: MenuItemID::Save,          hierarchy: 1, initial_status: MF_DISABLED,  name_str: "Save",            op_func:Some(MainWindow::on_menu_save),},
+    MenuItemConstInfo{   id: MenuItemID::SaveAs,        hierarchy: 1, initial_status: MF_DISABLED,  name_str: "Save As",         op_func:Some(MainWindow::on_menu_saveas),},
+    MenuItemConstInfo{   id: MenuItemID::Separater,     hierarchy: 1, initial_status: MF_SEPARATOR, name_str: "",                op_func:None,},
+    MenuItemConstInfo{   id: MenuItemID::Exit,          hierarchy: 1, initial_status: MF_ENABLED,   name_str: "Exit",            op_func:Some(MainWindow::on_menu_exit),},
+    MenuItemConstInfo{   id: MenuItemID::Help,          hierarchy: 0, initial_status: MF_POPUP,     name_str: "Help",            op_func:None,},
+    MenuItemConstInfo{   id: MenuItemID::About,         hierarchy: 1, initial_status: MF_ENABLED,   name_str: "About",           op_func:Some(MainWindow::on_menu_about),},
 ];
 const MAX_MENU_HIERARYCHY :usize = 2;
 
-#[derive(Clone, Copy)]
-#[derive(PartialEq)]
-#[repr(usize)]
-enum ButtonID {
-    PLAY,
-    REC,
-    STOP,
-    FFORWORD,
-    REWIND,
-    H_ZOOM_IN,
-    H_ZOOM_OUT,
-    V_ZOOM_IN,
-    V_ZOOM_OUT,
-}
-
-struct ButtonConstInfo {
-    button_id: ButtonID,
-    initial_status: BOOL,
-    anchor: AnchorConer,
-    x: i32, y: i32, width: i32, height: i32,
-    push_func: fn(&mut MainWindow)->RpResult<()>,
-    paint_func: fn(&ID2D1DCRenderTarget, &ID2D1SolidColorBrush, &RECT)->RpResult<()>,
-}
-
-const BUTTONS :[ButtonConstInfo; 9] = [
-    ButtonConstInfo{   button_id: ButtonID::PLAY,        initial_status: FALSE, anchor: AnchorConer::LeftBottom,    x:    10, y:   -60, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-    ButtonConstInfo{   button_id: ButtonID::REC,         initial_status: TRUE,  anchor: AnchorConer::LeftBottom,    x:    70, y:   -60, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_paint_rec,},
-    ButtonConstInfo{   button_id: ButtonID::STOP,        initial_status: FALSE, anchor: AnchorConer::LeftBottom,    x:   130, y:   -60, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-    ButtonConstInfo{   button_id: ButtonID::FFORWORD,    initial_status: FALSE, anchor: AnchorConer::LeftBottom,    x:   190, y:   -60, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-    ButtonConstInfo{   button_id: ButtonID::REWIND,      initial_status: FALSE, anchor: AnchorConer::LeftBottom,    x:   250, y:   -60, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-    ButtonConstInfo{   button_id: ButtonID::H_ZOOM_IN,   initial_status: TRUE,  anchor: AnchorConer::HcenterTop,    x:   -60, y:    30, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-    ButtonConstInfo{   button_id: ButtonID::H_ZOOM_OUT,  initial_status: TRUE,  anchor: AnchorConer::HcenterTop,    x:    10, y:    30, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-    ButtonConstInfo{   button_id: ButtonID::V_ZOOM_IN,   initial_status: TRUE,  anchor: AnchorConer::RightVcenter,  x:   -60, y:   -60, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-    ButtonConstInfo{   button_id: ButtonID::V_ZOOM_OUT,  initial_status: TRUE,  anchor: AnchorConer::RightVcenter,  x:   -60, y:    10, width:   50, height:   50, push_func:MainWindow::on_dummy, paint_func:ButtonInfo::on_dummy,},
-];
-
-const COLOR_DIM :D2D1_COLOR_F = D2D1_COLOR_F{r:0.0, g:0.0, b:0.15, a:1.0};
-const COLOR_DIM_LIGHT :D2D1_COLOR_F = D2D1_COLOR_F{r:0.15, g:0.15, b:0.5, a:1.0};
-const COLOR_RED :D2D1_COLOR_F = D2D1_COLOR_F{r:1.0, g:0.0, b:0.0, a:1.0};
-const COLOR_BLUE :D2D1_COLOR_F = D2D1_COLOR_F{r:0.0, g:0.0, b:1.0, a:1.0};
-const COLOR_GREY :D2D1_COLOR_F = D2D1_COLOR_F{r:0.5, g:0.5, b:0.5, a:1.0};
-
-#[repr(C)]
-#[derive(Clone)]
-struct ButtonInfo{
-    hwnd: HWND,
-    const_info: &'static ButtonConstInfo,
-    op_render_target: Option<ID2D1DCRenderTarget>,
-    brush_vec: Vec<ID2D1SolidColorBrush>,
-}
-
-impl ButtonInfo{
-    #[allow(dead_code)]
-    fn on_dummy(render_target: &ID2D1DCRenderTarget, _brush: &ID2D1SolidColorBrush, _rect:&RECT) -> RpResult<()> {
-        unsafe{ render_target.Clear(&COLOR_GREY); }
-        Ok(())
-    }
-
-    fn on_paint_rec(render_target: &ID2D1DCRenderTarget, brush: &ID2D1SolidColorBrush, rect:&RECT) -> RpResult<()> {
-        unsafe {
-            let width: f32 = f64::from(rect.right - rect.left) as f32;
-            let height: f32 = f64::from(rect.bottom - rect.top) as f32;
-            render_target.FillEllipse(
-                &D2D1_ELLIPSE{ point: D2D_POINT_2F{x: width/2.0, y: height/2.0}, radiusX: width/3.0, radiusY: width/3.0},
-                brush
-            );
-        }
-        Ok(())
-    }
-
-    fn on_draw( ref_self: &mut Self, op_factory:&Option<ID2D1Factory>, p_drawstruct:isize) -> RpResult<()> {
-        unsafe {
-            // Create Render_Target and Brush
-            if ref_self.op_render_target.is_none() {
-                ref_self.op_render_target = create_dc_render_target(ref_self.hwnd, op_factory)?;
-                ref_self.brush_vec.push(create_dc_solid_brush(&ref_self.op_render_target, &COLOR_RED)?);  // 0 : Enable
-                ref_self.brush_vec.push(create_dc_solid_brush(&ref_self.op_render_target, &COLOR_GREY)?); // 1 : Disable
-                ref_self.brush_vec.push(create_dc_solid_brush(&ref_self.op_render_target, &COLOR_BLUE)?); // 2 : Focus
-            }
-            
-
-            // Paint & Draw
-            if let Some(render_target) = &ref_self.op_render_target {
-                let hdc = (*(p_drawstruct as *const isize as *const DRAWITEMSTRUCT)).hDC;
-                let rect= (*(p_drawstruct as *const isize as *const DRAWITEMSTRUCT)).rcItem;
-                render_target.BindDC(hdc, &rect).ok()?;
-
-               
-                println!("itemState {}", (*(p_drawstruct as *const isize as *const DRAWITEMSTRUCT)).itemState);
-
-                let item_state = (*(p_drawstruct as *const isize as *const DRAWITEMSTRUCT)).itemState;
-                let brush_idx: usize;
-                let bg_color: D2D1_COLOR_F;
-                // Set Brush
-                if item_state & ODS_DISABLED != 0 { brush_idx = 1;}
-                else { brush_idx = 0;}
-                // Set Back-Ground Color
-                if item_state & ODS_SELECTED != 0 { bg_color = COLOR_DIM_LIGHT;}
-                else { bg_color = COLOR_DIM;}
 
 
-                render_target.BeginDraw();
-                render_target.Clear(&bg_color);
-                // Draw Foucus Andle
-                if item_state & ODS_FOCUS != 0 {
-                    render_target.DrawRectangle(
-                        &rect_itof(&rect),
-                        &ref_self.brush_vec[2],
-                        3.0,
-                        None,
-                    )
-                }
 
-                let func = ref_self.const_info.paint_func;
-                func(render_target, &ref_self.brush_vec[brush_idx], &rect)?;
-
-                
-                let mut tag: (u64, u64) = (0,0);
-                let h_result = render_target.EndDraw(&mut tag.0, &mut tag.1);
-                if h_result.is_err() {
-                    if h_result == D2DERR_RECREATE_TARGET {
-                        ref_self.op_render_target = None;
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
-
-
-}
 
 
 fn calc_button_pos(rect: &RECT, anchor: AnchorConer, rel_x_pos: i32, rel_y_pos: i32) -> (i32,i32) {
@@ -473,11 +217,12 @@ pub struct MainWindow {
     hwnd: HWND,
     op_sound: Option<Sound>,
     op_track: Option<Track>,
-    op_factory: Option<ID2D1Factory>,
+    rc_op_factory: Rc<Option<ID2D1Factory>>,
     op_render_target: Option<ID2D1HwndRenderTarget>,
     op_brush: Option<ID2D1SolidColorBrush>,
     op_buttons: Option<Vec<ButtonInfo>>,
     op_subwindows: Option<Vec<HWND>>,
+    op_button_geometry: Option<ButtonGeometry>
 }
 const MAINWINDOW_WIDTH :i32 = 1200;
 const MAINWINDOW_HEIGHT :i32 = 800;
@@ -498,11 +243,12 @@ impl MainWindow {
             hwnd: HWND(0),
             op_sound: None,
             op_track: None,
-            op_factory: None,
+            rc_op_factory: Rc::new(None),
             op_render_target: None,
             op_brush: None,
             op_buttons: None,
             op_subwindows: None,
+            op_button_geometry: None,
         }
     }
 
@@ -563,12 +309,17 @@ impl MainWindow {
             if op_factory.is_none() {
                 return Err(ResonanceParrotError::new("Error: ID2D1Factory is None"));
             }
-            self.op_factory = op_factory;
+            self.rc_op_factory = Rc::new(op_factory);
             Ok(())
         }
     }
 
     fn create_buttons(&mut self) -> RpResult<()> {
+        // Create Buttons Geometry
+        
+        self.op_button_geometry = Some(ButtonGeometry::new(Rc::clone(&self.rc_op_factory))?);
+
+        // Create Bottons
         self.op_buttons = Some(Vec::new());
         let mut rect: RECT = RECT::default();
         unsafe {
@@ -586,7 +337,7 @@ impl MainWindow {
                     "", 
                     WS_VISIBLE | WS_CHILD | WS_TABSTOP | WS_CLIPSIBLINGS | WINDOW_STYLE(BS_OWNERDRAW.0),
                     pos.0, pos.1,
-                    button_info.width, button_info.height,
+                    BUTTON_WIDTH, BUTTON_HEIGHT,
                     self.hwnd,
                     None,
                     HINSTANCE(GetWindowLongPtrW(self.hwnd, GWLP_HINSTANCE)),
@@ -594,7 +345,7 @@ impl MainWindow {
                 );
             }
             if let Some(bottons) = &mut self.op_buttons {
-                bottons.push(ButtonInfo{ hwnd: button_hwnd, const_info: button_info, op_render_target: None, brush_vec: Vec::new()})
+                bottons.push(ButtonInfo{ hwnd: button_hwnd, const_info: button_info, op_render_target: None, brush_vec: Vec::new(), mode:0})
             }
             unsafe {
                 EnableWindow(button_hwnd, button_info.initial_status);
@@ -637,7 +388,7 @@ impl MainWindow {
                     }
                 }
                 else {
-                    if AppendMenuW(h_menu_vec[menu_item.hierarchy], menu_item.initial_status, menu_item.menu_id as usize, menu_item.name_str) != FALSE {
+                    if AppendMenuW(h_menu_vec[menu_item.hierarchy], menu_item.initial_status, menu_item.id as usize, menu_item.name_str) != FALSE {
                         n_pos_vec[menu_item.hierarchy] += 1;
                     }
                 }
@@ -731,13 +482,13 @@ impl MainWindow {
         Ok(())
     }
 
-    fn set_menu_status(&mut self, menu_id: MenuItemID, menu_status: MENU_ITEM_FLAGS) -> RpResult<()> {
+    fn set_menu_status(&mut self, id: MenuItemID, menu_status: MENU_ITEM_FLAGS) -> RpResult<()> {
         unsafe {
             let h_menu = GetMenu(self.hwnd);
             if menu_status.0 & MF_BYPOSITION.0 != 0 {
                 return Err(ResonanceParrotError::new("Error: Do not set MF_BYPOSITION in menu_status"));
             }
-            if EnableMenuItem(h_menu, u32::try_from(menu_id as usize)?, menu_status).0 == -1 {
+            if EnableMenuItem(h_menu, u32::try_from(id as usize)?, menu_status).0 == -1 {
                 return Err(ResonanceParrotError::new("Error: menu_id does not exist"));
             }
         }
@@ -789,9 +540,9 @@ impl MainWindow {
         Ok(())
     }
 
-    fn on_menu(&mut self, menu_id: usize) -> RpResult<()> {
+    fn on_menu(&mut self, id: usize) -> RpResult<()> {
         for menu_item in MENU_ITEMS.iter() {
-            if menu_item.menu_id as usize == menu_id {
+            if menu_item.id as usize == id {
                 if let Some(func) = menu_item.op_func {
                     return func(self)
                 }
@@ -804,7 +555,7 @@ impl MainWindow {
         unsafe {
             // Create Render_Target and Brush
             if self.op_render_target.is_none() {
-                self.op_render_target = create_hwnd_render_target(self.hwnd, &self.op_factory)?;
+                self.op_render_target = create_hwnd_render_target(self.hwnd, Rc::clone(&self.rc_op_factory))?;
 
             }
 
@@ -827,17 +578,18 @@ impl MainWindow {
         Ok(())
     }
 
+    
     fn on_draw_item(&mut self, p_drawstruct: isize) -> RpResult<()> {
         let hwnd: HWND;
-        let hdc: HDC;
         unsafe{
             hwnd = (*(p_drawstruct as *const isize as *const DRAWITEMSTRUCT)).hwndItem;
         }
+
         if let Some(buttons) = &mut self.op_buttons {
             for button in buttons {
                 if hwnd == button.hwnd {
-                    ButtonInfo::on_draw(button, &self.op_factory, p_drawstruct)?;
-                    print!("button {}, ",button.const_info.button_id as usize);
+                    print!("button {}, ",button.const_info.id as usize);
+                    on_draw_button(button, &mut self.op_button_geometry ,p_drawstruct)?;
                     break;
                 }
             }
@@ -910,6 +662,12 @@ impl MainWindow {
 
         match message {
             WM_NCCREATE =>{
+                if ref_self.create_factory().is_err() {
+                    unsafe {
+                        PostQuitMessage(-1);
+                    }
+                    return LRESULT(0);
+                }
                 if ref_self.create_menu().is_err() {
                     unsafe {
                         PostQuitMessage(-1);
@@ -924,12 +682,7 @@ impl MainWindow {
                 }
             }
             WM_CREATE => {
-                if ref_self.create_factory().is_err() {
-                    unsafe {
-                        PostQuitMessage(-1);
-                    }
-                    return LRESULT(0);
-                }
+
             }
             WM_CLOSE => {
                 // 

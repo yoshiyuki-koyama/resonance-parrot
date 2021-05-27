@@ -21,7 +21,7 @@ fn main() {
         Windows::Win32::UI::WindowsAndMessaging::{
             WNDCLASSEXW, CS_HREDRAW, CS_VREDRAW,
             RegisterClassExW,
-            CreateWindowExW, CW_USEDEFAULT, WS_VISIBLE, WS_OVERLAPPEDWINDOW, WS_CHILD, WS_TABSTOP, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+            CreateWindowExW, CW_USEDEFAULT, WS_VISIBLE, WS_OVERLAPPEDWINDOW, WS_CHILD, WS_TABSTOP, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, 
             ShowWindow, SW_SHOW, DestroyWindow, 
             SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, SWP_NOSENDCHANGING,
             CreateMenu, CreatePopupMenu, AppendMenuW, SetMenu, DeleteMenu, DestroyMenu, GetMenu, EnableMenuItem,
@@ -54,18 +54,20 @@ fn main() {
         Windows::Win32::UI::HiDpi::{
             SetProcessDpiAwarenessContext,
         },
-        Windows::Win32::Graphics::Gdi::{
-            HDC, PAINTSTRUCT, HBRUSH, BeginPaint, EndPaint, InvalidateRect,
-        },
+        //Windows::Win32::Graphics::Gdi::{
+        //    HDC, PAINTSTRUCT, HBRUSH, BeginPaint, EndPaint, InvalidateRect,
+        //},
         Windows::Win32::Graphics::Direct2D::{
             ID2D1Factory, D2D1CreateFactory,
-            ID2D1HwndRenderTarget, ID2D1DCRenderTarget, ID2D1SolidColorBrush, ID2D1StrokeStyle,
+            ID2D1HwndRenderTarget, ID2D1DCRenderTarget, ID2D1SolidColorBrush, ID2D1StrokeStyle, 
+            ID2D1PathGeometry, ID2D1RectangleGeometry, ID2D1EllipseGeometry, ID2D1GeometrySink,
             D2D1_FACTORY_TYPE_SINGLE_THREADED, D2D1_FACTORY_OPTIONS,
             D2D1_RENDER_TARGET_PROPERTIES, D2D1_PIXEL_FORMAT, D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1_ALPHA_MODE_IGNORE, D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE,
             D2D1_HWND_RENDER_TARGET_PROPERTIES, D2D1_PRESENT_OPTIONS_IMMEDIATELY, D2D1_PRESENT_OPTIONS_NONE,
             D2D1_BRUSH_PROPERTIES,
-            D2D_SIZE_U, D2D_SIZE_F, D2D1_COLOR_F,
+            D2D_SIZE_U, D2D_SIZE_F, D2D1_COLOR_F, D2D_POINT_2F,
             D2D1_ELLIPSE, D2D_RECT_F,
+            D2D1_FIGURE_BEGIN, D2D1_FIGURE_BEGIN_FILLED, D2D1_FIGURE_BEGIN_HOLLOW, D2D1_FIGURE_END, D2D1_FIGURE_END_OPEN, D2D1_FIGURE_END_CLOSED,
         },
         Windows::Win32::Graphics::Dxgi::{
             DXGI_FORMAT_B8G8R8A8_UNORM,
